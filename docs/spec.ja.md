@@ -79,7 +79,7 @@ PNG / JPEG / GIF / BMP / WebP / RGBA
 | UC3 | カラー LCD 用画像を作る | RGB332 / RGB565 / RGB888、バイト順、透過を選べる |
 | UC4 | ライブラリへそのまま貼れるヘッダーを作る | ターゲット別プリセットと使用例を生成する |
 | UC5 | 複数画像を個別の `.h` へ一括生成する | 設定ファイル、安定した順序、衝突しないシンボル、`--check` を持つ |
-| UC6 | TinyGFX の flash 使用量を最小化する | 全符号化を比較し、画像集合単位でデータ＋デコーダ代を最小化する |
+| UC6 | TinyGFX の flash 使用量を最小化する | 全符号化を比較し、画像集合単位でデータ＋固定デコーダ代を最小化する |
 | UC7 | 変換条件を対話的に決める | Web で原画・変換画・拡大画・容量を即時比較できる |
 | UC8 | CI で生成漏れを検出する | 書き込まない `--check` と機械可読 JSON を持つ |
 | UC9 | 他ツールから組み込む | Node/browser 共通の公開 API と、I/O を分離した純粋関数を持つ |
@@ -333,9 +333,11 @@ inspectImage(image, options)           // 色数、alpha、候補サイズ、誤
 
 ```text
 sum(各画像の data + palette + metadata)
-+ sum(使用する形式集合の decoder cost)
-+ optional fast-path cost
++ decoderSetCost(使用する形式集合)
 ```
+
+通常は使用 decoder 1 本につき `decoderCost` を加える。`bitmap1h` と `bitmap1v` を
+両方使う場合だけ、2 本分を共有コスト `round(decoderCost * 1.3)` に置き換える。
 
 デコーダ代は画像ごとではなく形式集合ごとに一度だけ加える。したがって
 `optimizeImage()` と別に `optimizeImageSet()` を必須 API とする。形式数は少ないため、
@@ -353,46 +355,31 @@ sum(各画像の data + palette + metadata)
 する。貼り先が既知なら `bitmapLayout` で明示する。ファイル列挙順や object key 順へ
 tie-break を依存させない。
 
-### 8.3 コストプロファイル
+### 8.3 固定デコーダコスト
 
-- 初期同梱: `ch32v003` / `avr` / `esp32`。
-- 値は TinyGFX の実測表を初期値とし、出典、TinyGFX version、compiler、flags を持つ。
-- profile は測定した decoder cost が透過判定を含むかを表す
-  `includesTransparency` を必須で持つ。TinyGFX 本実装由来の初期 profile は `true`。
-- `includesTransparency: false` の profile を許す場合は、透過画像を含む形式ごとの
-  `transparencyIncrement` も必須とし、optimizer が一度だけ加算する。既存実測では
-  この増分は形式・MCU により 24〜66 B なので、0 と仮定してはならない。
-- ユーザー定義 JSON profile を受け付ける。
-- 共有デコーダ（`bitmap1h` + `bitmap1v`）の組み合わせコストを表現できる。
-- 未知 MCU ではデータ量のみ、または明示した generic profile で計算し、実測値を装わない。
-- `aligned-vblit` は容量より速度を選ぶ option とし、通常の decoder cost と混同しない。
-  CH32V003 の本実装実測は fast path 244 B、汎用経路 408 B（差 164 B）である。
-  当初見積もりの 24 B は profile に採用しない。ページ境界、回転、帯、panel 外判定、
-  dirty tracking を含む測定条件を profile metadata に記録する。
+MCU 別・形式別の実測 profile は持たない。全形式を同じ固定値で評価する。
 
-profile の概念例:
+| 項目 | 既定値 |
+| --- | ---: |
+| decoder 1 形式 | 400 B |
+| `bitmap1h` と `bitmap1v` の両方 | 520 B（400 B × 1.3） |
 
-```json
-{
-  "id": "ch32v003",
-  "source": "TinyGFX docs/IMAGE_FORMAT.ja.md",
-  "tinygfxVersion": "measured-version",
-  "compiler": "measured-compiler",
-  "flags": "-Os",
-  "includesTransparency": true,
-  "decoders": {},
-  "sharedDecoders": {},
-  "fastPaths": {
-    "alignedVblit": {
-      "codeBytes": 244,
-      "genericCodeBytes": 408,
-      "purpose": "speed"
-    }
-  }
-}
-```
+- `raw565` / `rle565` / `rlepal4` / 1bpp の各 decoder は 1 本 400 B とする。
+- 1bpp の横と縦は実装を共有するため、両方使っても 800 B ではなく 520 B とする。
+- 透過判定はこの固定値に含むものとして扱い、透過画像に追加コストを加えない。
+- CLI の `--decoder-cost <N>` と API の `decoderCost` で 1 形式の値を上書きできる。
+  共有 1bpp は `round(N * 1.3)` とする。
+- MCU の指定、形式別 cost table、JSON cost profile、実測値の自動同期は実装しない。
 
-実際の数値は測定結果から生成し、例の placeholder を製品 profile へ流用しない。
+根拠は TinyGFX `docs/IMAGE_FORMAT.ja.md` の感度検証である。CH32V003 / AVR / ESP32、
+3 種類の画像集合の計 9 ケースで、実測 profile と固定 400 B の選択が一致した。
+さらに 100〜800 B の範囲で選択結果の感度が低い。データ量が形式間で桁違いになるため、
+decoder の数十〜数百 byte の差は通常、形式集合の選択を変えない。
+
+`aligned-vblit` は固定 decoder cost に混ぜない。CH32V003 の本実装実測は fast path
+244 B、汎用 `drawImage` 408 B（差 164 B）だが、これは形式間の容量最適化ではなく
+**サイズと速度の選択**である。利用者が明示的に有効化し、report には通常経路と
+fast path の双方を別欄で表示する。当初見積もりの 24 B は使用しない。
 
 ### 8.4 レポート
 
@@ -471,7 +458,7 @@ align = 4
 static = true
 
 [optimize]
-mcu = ch32v003
+decoder_cost = 400
 bitmap_layout = auto
 prefer_bitmap = horizontal
 aligned_vblit = false
@@ -513,7 +500,7 @@ gfx-image-tool --version
 --out <path>          単一画像の header、または directory 処理の出力 directory
 --target <id>         出力ターゲット
 --format <id|auto>    形式を固定、または候補から選択
---mcu <id>            TinyGFX cost profile
+--decoder-cost <N>     TinyGFX decoder 1形式の固定コスト（既定400 B）
 --check               書き込まず既存出力との一致を検査
 --json                stdout を機械可読 JSON にする
 --report <path>       詳細レポート JSON の保存先
@@ -566,7 +553,7 @@ UI framework なしの静的アプリを GitHub Pages で配信する。単一�
 
 project 共通に向く項目:
 
-- target、TinyGFX の MCU / 最適化目的
+- target、TinyGFX の固定 decoder cost / 最適化目的
 - format の `auto` / 許可形式集合
 - resize filter、既定 matte、既定 alpha threshold
 - C/C++ の storage、alignment、prefix、命名規則
@@ -641,7 +628,7 @@ GfxImageToolJs/
 │   ├── transform/      # crop / resize / alpha / quantize / dither
 │   ├── format/         # bit packing と各画素形式 encoder
 │   ├── target/         # preset と C/C++ emitter
-│   ├── optimize/       # 候補比較、TinyGFX 集合最適化、cost profile
+│   ├── optimize/       # 候補比較、TinyGFX 集合最適化、固定 decoder cost
 │   ├── inspect/        # 統計・誤差・report
 │   ├── node/           # Node decoder と filesystem workflow
 │   ├── browser/        # browser decoder
@@ -697,6 +684,8 @@ util ← model ← transform / format ← target / inspect / optimize
 - 各 bit / byte order の期待 byte 列を手計算 fixture と完全一致。
 - 1bpp は 1x8 等の非対称寸法で横・縦の容量差を検証し、8 の倍数寸法では
   `preferBitmap` による安定した同点選択を検証する。
+- TinyGFX optimizer は decoder 1 本 400 B、1bpp 両方 520 Bで集合選択を固定し、
+  `decoderCost` 上書き時も共有コストを同じ丸め規則で算出する。
 - 各 transform の golden pixel 一致。
 - 量子化・dither の決定性と golden 一致。
 - PNG/JPEG/GIF/BMP decode、破損入力、巨大寸法拒否。
@@ -798,7 +787,7 @@ git push --follow-tags
 ### Phase 3 — TinyGFX 最適化
 
 - TinyGFX 5 optimizer 候補と C header（1bpp 2 候補は汎用 encoder を共有）
-- MCU cost profiles、共有 decoder cost、集合最適化
+- 固定 decoder cost、1bpp 共有割引、集合最適化
 - TinyGFX host oracle、実験用 `img2h.py` との補助的な符号化 fixture 交差検査
 
 ### Phase 4 — Web project workspace
@@ -828,7 +817,6 @@ git push --follow-tags
 | GIF / WebP animation | 初期は第1フレーム＋warning。需要があれば frame set model を追加する |
 | crop/resize の Phase 1 範囲 | Core 設計には含める。CLI/UI 優先度は単一変換 spike 後に確定する |
 | 最適化時の画質制約 | `maxMse` 等で候補を足切りしてから容量最小化する方式を初期案とする |
-| TinyGFX cost profile の更新 | TinyGFX 側の計測スクリプトから JSON を生成し、手書き転記をなくす |
 | Web の対応言語 | 初期 en / ja。LGFXFontToolJs と同じ4言語へ広げるかは公開時に判断する |
 
 ---
@@ -841,7 +829,7 @@ git push --follow-tags
 2. generic-c と主要 5 GFX targetについて、画像ごとの自己完結したヘッダーが生成できる。
 3. 単一画像と任意 directory の build / inspect / init / check が動く。
 4. Web で複数画像、共通設定＋画像別上書き、設定再 import、個別 `.h` / ZIP download が動く。
-5. TinyGFX 5 候補、MCU profile、集合最適化が動き、TinyGFX host test の描画結果と
+5. TinyGFX 5 候補、固定 decoder cost、集合最適化が動き、TinyGFX host test の描画結果と
    pixel exact で一致する。`img2h.py` との一致は符号化 byte 列の補助検査とする。
 6. byte order、bit order、alpha、端数幅、palette 境界を golden test で固定している。
 7. `npm run check`、build、types、dist smoke、site build が CI で通る。
