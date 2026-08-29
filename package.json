@@ -1,0 +1,75 @@
+{
+  "name": "gfx-image-tool",
+  "version": "0.1.0",
+  "description": "Convert images into C/C++ graphics assets for embedded display libraries.",
+  "type": "module",
+  "license": "MIT",
+  "author": "TANAKA Masayuki",
+  "sideEffects": false,
+  "main": "dist/gfx-image-tool.js",
+  "module": "dist/gfx-image-tool.js",
+  "browser": "dist/gfx-image-tool.min.js",
+  "unpkg": "dist/gfx-image-tool.min.js",
+  "jsdelivr": "dist/gfx-image-tool.min.js",
+  "types": "types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./dist/gfx-image-tool.js"
+    },
+    "./node": {
+      "types": "./types/node/index.d.ts",
+      "default": "./src/node/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "gfx-image-tool": "./bin/gfx-image-tool.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "src",
+    "types",
+    "CHANGELOG.md",
+    "README.md",
+    "README.ja.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "arduino",
+    "embedded",
+    "image",
+    "bitmap",
+    "rgb565",
+    "adafruit-gfx",
+    "lovyangfx",
+    "tinygfx"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tanakamasayuki/GfxImageToolJs.git"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "test:watch": "node --test --watch \"test/*.test.js\"",
+    "build": "node scripts/build.js",
+    "types": "tsc -p tsconfig.types.json",
+    "typecheck": "tsc --noEmit",
+    "smoke:dist": "node scripts/smoke-dist.js",
+    "check": "npm run test && npm run typecheck",
+    "prepack": "npm run build && npm run types"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0"
+  },
+  "optionalDependencies": {
+    "@napi-rs/canvas": "^0.1.100"
+  }
+}
