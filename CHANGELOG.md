@@ -4,3 +4,7 @@
 
 - (EN) Start the library-first image model, embedded pixel encoders, generic C emitter, and Node CLI.
 - (JA) Library First の画像モデル、組込み向け画素エンコーダ、汎用 C 出力、Node CLI の実装を開始。
+- (EN) Add deterministic indexed-color quantization, directory projects, configuration, check mode, and GFX target presets.
+- (JA) 決定的な索引色減色、ディレクトリプロジェクト、設定、checkモード、GFXターゲットpresetを追加。
+- (EN) Add TinyGFX five-format encoding, fixed decoder-cost set optimization, CellImage headers, stable bitmap tie-breaking, and alpha transparency.
+- (JA) TinyGFXの5形式エンコード、固定デコーダコストによる集合最適化、CellImageヘッダー、安定した1bpp同点選択、alpha透過を追加。

@@ -1,5 +1,6 @@
 // @ts-check
 import { validateImage } from '../model/image.js';
+import { quantizeImage } from '../transform/quantize.js';
 import { UnsupportedFormatError } from '../util/errors.js';
 
 /** @typedef {import('../model/image.js').GfxImage} GfxImage */
@@ -9,7 +10,9 @@ import { UnsupportedFormatError } from '../util/errors.js';
  * @property {number} height
  * @property {string} format
  * @property {Uint8Array} data
+ * @property {Uint8Array | Uint16Array} [palette] RGB888 bytes or target-native RGB565 entries.
  * @property {number} stride
+ * @property {{kind: 'color'|'palette-index', value: number}} [transparent]
  * @property {{dataBytes: number, paletteBytes: number, maskBytes: number}} stats
  * @property {Record<string, unknown>} options
  */
@@ -19,6 +22,7 @@ const FORMATS = Object.freeze([
   'bitmap1-lsb',
   'bitmap1-vertical',
   'gray8',
+  'indexed8',
   'rgb332',
   'rgb565le',
   'rgb565be',
@@ -45,6 +49,30 @@ export const luminance = (r, g, b) => (54 * r + 183 * g + 19 * b + 128) >> 8;
 
 /** @param {number} r @param {number} g @param {number} b */
 export const rgb565 = (r, g, b) => ((r & 0xf8) << 8) | ((g & 0xfc) << 3) | (b >> 3);
+
+/**
+ * Shared 1bpp packer used by generic and TinyGFX formats.
+ * @param {ArrayLike<number>} bits Row-major 0/1 pixels.
+ * @param {number} width
+ * @param {number} height
+ * @param {'bitmap1-msb'|'bitmap1-lsb'|'bitmap1-vertical'} format
+ */
+export function packBitmap1(bits, width, height, format) {
+  if (bits.length !== width * height) throw new RangeError('Bitmap bit count does not match dimensions.');
+  if (format === 'bitmap1-vertical') {
+    const data = new Uint8Array(width * Math.ceil(height / 8));
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      if (bits[y * width + x]) data[(y >> 3) * width + x] |= 1 << (y & 7);
+    }
+    return { data, stride: width };
+  }
+  const stride = Math.ceil(width / 8);
+  const data = new Uint8Array(stride * height);
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    if (bits[y * width + x]) data[y * stride + (x >> 3)] |= format === 'bitmap1-lsb' ? 1 << (x & 7) : 1 << (7 - (x & 7));
+  }
+  return { data, stride };
+}
 
 const BAYER = Object.freeze({
   bayer2: [[0, 2], [3, 1]],
@@ -106,7 +134,7 @@ function monochrome(image, threshold, invert, dither) {
 /**
  * @param {GfxImage} image
  * @param {string} format
- * @param {{threshold?: number, alphaThreshold?: number, invert?: boolean, dither?: 'none'|'floyd-steinberg'|'bayer2'|'bayer4'|'bayer8'}} [options]
+ * @param {{threshold?: number, alphaThreshold?: number, invert?: boolean, dither?: 'none'|'floyd-steinberg'|'bayer2'|'bayer4'|'bayer8', colors?: number}} [options]
  * @returns {EncodedImage}
  */
 export function encodeImage(image, format, options = {}) {
@@ -122,28 +150,23 @@ export function encodeImage(image, format, options = {}) {
   const mono = format.startsWith('bitmap1-') ? monochrome(image, threshold, !!options.invert, dither) : undefined;
 
   let data;
+  /** @type {Uint8Array | undefined} */
+  let palette;
   let stride;
-  if (format === 'bitmap1-msb' || format === 'bitmap1-lsb' || format === 'mask1-msb') {
-    stride = Math.ceil(image.width / 8);
-    data = new Uint8Array(stride * image.height);
-    for (let y = 0; y < image.height; y++) {
-      for (let x = 0; x < image.width; x++) {
-        const at = (y * image.width + x) * 4;
-        const on = format === 'mask1-msb'
-          ? image.pixels[at + 3] >= alphaThreshold
-          : mono?.[y * image.width + x] === 1;
-        if (on) data[y * stride + (x >> 3)] |= format === 'bitmap1-lsb' ? 1 << (x & 7) : 1 << (7 - (x & 7));
-      }
-    }
+  if (format === 'bitmap1-msb' || format === 'bitmap1-lsb') {
+    const packed = packBitmap1(/** @type {Uint8Array} */ (mono), image.width, image.height, format);
+    data = packed.data;
+    stride = packed.stride;
+  } else if (format === 'mask1-msb') {
+    const bits = new Uint8Array(image.width * image.height);
+    for (let p = 0; p < bits.length; p++) bits[p] = image.pixels[p * 4 + 3] >= alphaThreshold ? 1 : 0;
+    const packed = packBitmap1(bits, image.width, image.height, 'bitmap1-msb');
+    data = packed.data;
+    stride = packed.stride;
   } else if (format === 'bitmap1-vertical') {
-    stride = image.width;
-    data = new Uint8Array(image.width * Math.ceil(image.height / 8));
-    for (let y = 0; y < image.height; y++) {
-      for (let x = 0; x < image.width; x++) {
-        const on = mono?.[y * image.width + x] === 1;
-        if (on) data[(y >> 3) * image.width + x] |= 1 << (y & 7);
-      }
-    }
+    const packed = packBitmap1(/** @type {Uint8Array} */ (mono), image.width, image.height, format);
+    data = packed.data;
+    stride = packed.stride;
   } else if (format === 'gray8') {
     stride = image.width;
     data = new Uint8Array(image.width * image.height);
@@ -151,6 +174,13 @@ export function encodeImage(image, format, options = {}) {
       const at = p * 4;
       data[p] = luminance(image.pixels[at], image.pixels[at + 1], image.pixels[at + 2]);
     }
+  } else if (format === 'indexed8') {
+    const quantized = quantizeImage(image, options.colors ?? 256, {
+      dither: dither === 'floyd-steinberg' ? dither : 'none',
+    });
+    data = quantized.indices;
+    palette = quantized.palette;
+    stride = image.width;
   } else if (format === 'rgb332') {
     stride = image.width;
     data = new Uint8Array(image.width * image.height);
@@ -185,10 +215,11 @@ export function encodeImage(image, format, options = {}) {
     height: image.height,
     format,
     data,
+    ...(palette ? { palette } : {}),
     stride,
     stats: {
       dataBytes: format === 'mask1-msb' ? 0 : data.length,
-      paletteBytes: 0,
+      paletteBytes: palette?.length ?? 0,
       maskBytes: format === 'mask1-msb' ? data.length : 0,
     },
     options: { threshold, alphaThreshold, invert: !!options.invert, dither },

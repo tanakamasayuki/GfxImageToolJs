@@ -8,6 +8,8 @@ import {
   emitCSource,
   encodeImage,
   inspectImage,
+  listTargets,
+  quantizeImage,
   resizeImage,
   sanitizeIdentifier,
 } from '../src/index.js';
@@ -64,6 +66,21 @@ test('ordered and error-diffusion dithering produce stable bytes', () => {
   assert.deepEqual([...encodeImage(gray, 'bitmap1-msb', { dither: 'floyd-steinberg' }).data], [0x49]);
 });
 
+test('weighted median-cut is deterministic and indexed8 carries RGB888 palette', () => {
+  const image = rgba(
+    [255, 0, 0, 255], [250, 0, 0, 255], [0, 0, 255, 255], [0, 0, 250, 255],
+  );
+  const first = quantizeImage(image, 2);
+  const second = quantizeImage(image, 2);
+  assert.deepEqual(first, second);
+  assert.equal(first.colorCount, 2);
+  assert.deepEqual([...first.palette], [0, 0, 253, 253, 0, 0]);
+  assert.deepEqual([...first.indices], [1, 1, 0, 0]);
+  const encoded = encodeImage(image, 'indexed8', { colors: 2 });
+  assert.deepEqual(encoded.palette, first.palette);
+  assert.equal(encoded.stats.paletteBytes, 6);
+});
+
 test('crop and deterministic nearest resize preserve pixels', () => {
   const image = createImage(2, 1, [255, 0, 0, 255, 0, 0, 255, 255]);
   assert.deepEqual([...cropImage(image, { x: 1, y: 0, width: 1, height: 1 }).pixels], [0, 0, 255, 255]);
@@ -77,7 +94,7 @@ test('inspection reports alpha and all Phase 1 candidates', () => {
   assert.equal(result.colors, 2);
   assert.equal(result.transparentPixels, 1);
   assert.equal(result.translucentPixels, 1);
-  assert.equal(result.candidates.length, 9);
+  assert.equal(result.candidates.length, 10);
 });
 
 test('generic C output is deterministic and sanitizes identifiers', () => {
@@ -88,4 +105,24 @@ test('generic C output is deterministic and sanitizes identifiers', () => {
   assert.match(source, /alignas\(4\) static const uint8_t _9_bad_name_data\[2\] PROGMEM/);
   assert.match(source, /0xF8, 0x00/);
   assert.ok(source.endsWith('\n'));
+});
+
+test('target presets constrain formats and preserve encoded RGB565 bytes', () => {
+  assert.deepEqual(listTargets(), ['generic-c', 'adafruit-gfx', 'u8g2', 'lovyangfx', 'arduino-gfx', 'tft-espi', 'tinygfx']);
+  const encoded = encodeImage(rgba([255, 0, 0, 255]), 'rgb565le');
+  const adafruit = emitCSource(encoded, 'adafruit-gfx', { name: 'red' });
+  assert.match(adafruit.source, /0x00, 0xF8/);
+  assert.match(adafruit.source, /drawRGBBitmap\(x, y, reinterpret_cast<const uint16_t\*>\(red_data\)/);
+  assert.throws(() => emitCSource(encoded, 'u8g2'), (error) => {
+    assert.equal(/** @type {{code?: string}} */ (error).code, 'TARGET_FORMAT_MISMATCH');
+    return true;
+  });
+});
+
+test('indexed target palette is emitted as RGB565 words', () => {
+  const encoded = encodeImage(rgba([255, 0, 0, 255], [0, 0, 255, 255]), 'indexed8', { colors: 2 });
+  const arduino = emitCSource(encoded, 'arduino-gfx', { name: 'two' });
+  assert.match(arduino.source, /const uint16_t two_palette\[2\]/);
+  assert.match(arduino.source, /0x001F, 0xF800/);
+  assert.match(arduino.usage, /drawIndexedBitmap/);
 });

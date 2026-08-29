@@ -2,7 +2,7 @@
 import { validateImage } from '../model/image.js';
 import { encodeImage, listFormats } from '../format/registry.js';
 
-/** @param {import('../model/image.js').GfxImage} image @param {{threshold?: number, alphaThreshold?: number, invert?: boolean, dither?: 'none'|'floyd-steinberg'|'bayer2'|'bayer4'|'bayer8'}} [options] */
+/** @param {import('../model/image.js').GfxImage} image @param {{threshold?: number, alphaThreshold?: number, invert?: boolean, dither?: 'none'|'floyd-steinberg'|'bayer2'|'bayer4'|'bayer8', colors?: number}} [options] */
 export function inspectImage(image, options = {}) {
   image = validateImage(image);
   const colors = new Set();
@@ -22,7 +22,14 @@ export function inspectImage(image, options = {}) {
     translucentPixels,
     candidates: listFormats().map((format) => {
       const encoded = encodeImage(image, format, options);
-      return { format, bytes: encoded.data.length, stride: encoded.stride };
+      return {
+        format,
+        dataBytes: encoded.stats.dataBytes,
+        paletteBytes: encoded.stats.paletteBytes,
+        maskBytes: encoded.stats.maskBytes,
+        bytes: encoded.stats.dataBytes + encoded.stats.paletteBytes + encoded.stats.maskBytes,
+        stride: encoded.stride,
+      };
     }),
   };
 }

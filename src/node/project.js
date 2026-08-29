@@ -1,0 +1,231 @@
+// @ts-check
+import { mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises';
+import { dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
+import { decodeImageFile } from './decode.js';
+import { IMAGES_CONFIG_TEMPLATE, parseImagesConfig, resolveImageConfig } from './config.js';
+import { buildGlobMatcher, buildImagesIgnoreMatcher } from './ignore.js';
+import { transformImage } from '../transform/transform.js';
+import { encodeImage, rgb565 } from '../format/registry.js';
+import { reduceImageColors } from '../transform/quantize.js';
+import { emitCSource, sanitizeIdentifier } from '../target/csource.js';
+import { optimizeTinyImageSet } from '../optimize/tinygfx.js';
+
+/** @typedef {import('./config.js').ImagesConfig} ImagesConfig */
+/** @typedef {{relative: string, absolute: string}} ImageEntry */
+/** @typedef {{input: string, relative: string, output: string, symbol: string, format: string, source: string, dataBytes: number, paletteBytes: number}} BuiltImage */
+
+/** @param {string} path */
+async function optionalText(path) {
+  try { return await readFile(path, 'utf8'); }
+  catch (error) {
+    if (/** @type {NodeJS.ErrnoException} */ (error).code === 'ENOENT') return '';
+    throw error;
+  }
+}
+
+/** @param {string} root @param {ImagesConfig} config */
+export async function collectImageEntries(root, config) {
+  root = resolve(root);
+  const outputRoot = resolve(root, config.general.outputDir);
+  const matchInput = buildGlobMatcher(config.input.patterns);
+  const ignore = buildImagesIgnoreMatcher(await optionalText(join(root, '.imagesignore')));
+  /** @type {ImageEntry[]} */
+  const entries = [];
+  /** @param {string} directory @param {string} prefix */
+  async function visit(directory, prefix) {
+    const children = await readdir(directory, { withFileTypes: true });
+    children.sort((a, b) => a.name.localeCompare(b.name, 'en'));
+    for (const child of children) {
+      const absolute = join(directory, child.name);
+      const portable = (prefix ? `${prefix}/${child.name}` : child.name).replaceAll('\\', '/');
+      if (child.isDirectory()) {
+        if (resolve(absolute) === outputRoot || ignore.shouldIgnore(portable, true)) continue;
+        await visit(absolute, portable);
+      } else if (child.isFile() && !ignore.shouldIgnore(portable, false) && matchInput(portable)) {
+        entries.push({ relative: portable, absolute });
+      }
+    }
+  }
+  await visit(root, '');
+  return entries;
+}
+
+/** @param {string} root @param {string} candidate */
+function inside(root, candidate) {
+  const rel = relative(root, candidate);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
+
+/** @param {string} relativePath */
+function headerRelative(relativePath) {
+  return relativePath.slice(0, relativePath.length - extname(relativePath).length) + '.h';
+}
+
+/** @param {string} relativePath */
+function defaultSymbol(relativePath) {
+  return relativePath.slice(0, relativePath.length - extname(relativePath).length).replaceAll('/', '_');
+}
+
+/**
+ * Build every prospective header without writing.
+ * @param {string} projectDir
+ * @param {{outputDir?: string, prefix?: string, format?: string, target?: string, mode?: 'auto'|'monochrome'|'grayscale'|'indexed'|'true-color', colors?: number, dither?: import('./config.js').Dither, threshold?: number, invert?: boolean, alphaThreshold?: number, alphaColor?: 'auto'|[number, number, number], matte?: [number, number, number], decoderCost?: number, preferBitmap?: 'horizontal'|'vertical', alignedVblit?: boolean}} [options]
+ */
+export async function buildImageProject(projectDir, options = {}) {
+  const root = resolve(projectDir);
+  const info = await stat(root);
+  if (!info.isDirectory()) throw new Error(`Not a directory: ${root}`);
+  const config = parseImagesConfig(await optionalText(join(root, '.imagesconfig')));
+  if (options.outputDir !== undefined) config.general.outputDir = options.outputDir;
+  if (options.prefix !== undefined) config.general.prefix = options.prefix;
+  if (options.target !== undefined) config.general.target = options.target;
+  if (options.format !== undefined) config.color.format = options.format;
+  if (options.mode !== undefined) config.color.mode = options.mode;
+  if (options.colors !== undefined) config.color.colors = options.colors;
+  if (options.dither !== undefined) config.color.dither = options.dither;
+  if (options.threshold !== undefined) config.color.threshold = options.threshold;
+  if (options.invert !== undefined) config.color.invert = options.invert;
+  if (options.alphaThreshold !== undefined) config.alpha.threshold = options.alphaThreshold;
+  if (options.alphaColor !== undefined) { config.alpha.mode = 'color-key'; config.alpha.color = options.alphaColor; }
+  if (options.matte !== undefined) { config.alpha.mode = 'none'; config.alpha.matte = options.matte; }
+  if (options.decoderCost !== undefined) config.optimize.decoderCost = options.decoderCost;
+  if (options.alignedVblit !== undefined) config.optimize.alignedVblit = options.alignedVblit;
+  if (options.preferBitmap !== undefined) config.optimize.preferBitmap = options.preferBitmap;
+  else if (options.alignedVblit) config.optimize.preferBitmap = 'vertical';
+  const outputRoot = resolve(root, config.general.outputDir);
+  const entries = await collectImageEntries(root, config);
+  const prepared = [];
+  for (const entry of entries) {
+    const effective = resolveImageConfig(config, entry.relative);
+    let image = await decodeImageFile(entry.absolute);
+    if (effective.alpha.mode === 'none') image = transformImage(image, { alpha: { mode: 'none', matte: effective.alpha.matte } });
+    if (effective.color.mode === 'indexed') {
+      if (!['none', 'floyd-steinberg'].includes(effective.color.dither)) throw new Error(`Indexed color only supports none or floyd-steinberg dither: ${entry.relative}`);
+      image = reduceImageColors(image, effective.color.colors, {
+        dither: /** @type {'none'|'floyd-steinberg'} */ (effective.color.dither),
+      }).image;
+    }
+    const symbol = sanitizeIdentifier(effective.symbol || `${config.general.prefix}${defaultSymbol(entry.relative)}`);
+    const relativeOutput = (effective.output || headerRelative(entry.relative)).replaceAll('\\', '/');
+    const output = resolve(outputRoot, relativeOutput);
+    if (!inside(outputRoot, output)) throw new Error(`Image output escapes output_dir: ${relativeOutput}`);
+    prepared.push({ entry, effective, image, symbol, output });
+  }
+  const tinyInputs = prepared.filter((item) => item.effective.general.target === 'tinygfx');
+  const tinyOptimization = tinyInputs.length ? optimizeTinyImageSet(tinyInputs.map((item) => ({
+    key: item.entry.relative,
+    image: item.image,
+    monochrome: item.effective.color.mode === 'monochrome',
+    threshold: item.effective.color.threshold,
+    invert: item.effective.color.invert,
+    dither: item.effective.color.dither,
+    alphaThreshold: item.effective.alpha.mode === 'color-key' ? item.effective.alpha.threshold : undefined,
+    transparentColor: item.effective.alpha.color === 'auto'
+      ? undefined
+      : rgb565(...item.effective.alpha.color),
+    allowedFormats: tinyAllowedFormats(item.effective.color.format),
+  })), {
+    decoderCost: config.optimize.decoderCost,
+    preferBitmap: config.optimize.preferBitmap,
+  }) : undefined;
+  const optimization = tinyOptimization ? {
+    ...tinyOptimization,
+    vblit: {
+      selected: config.optimize.alignedVblit ? 'aligned' : 'generic',
+      alignedBytes: 244,
+      genericBytes: 408,
+    },
+  } : undefined;
+  const tinyChoices = new Map(optimization?.images.map((item) => [item.key, item]) ?? []);
+  /** @type {BuiltImage[]} */
+  const images = [];
+  for (const item of prepared) {
+    const { entry, effective, image, symbol, output } = item;
+    const tinyChoice = tinyChoices.get(entry.relative);
+    const encoded = tinyChoice?.encoded ?? encodeImage(image, effective.color.format, {
+      threshold: effective.color.threshold, invert: effective.color.invert,
+      dither: effective.color.dither, colors: effective.color.colors,
+    });
+    const emitted = emitCSource(encoded, effective.general.target, {
+      name: symbol,
+      storage: effective.csource.storage,
+      align: effective.csource.align,
+      static: effective.csource.static,
+    });
+    images.push({
+      input: entry.absolute,
+      relative: entry.relative,
+      output,
+      symbol,
+      format: tinyChoice?.format ?? effective.color.format,
+      source: emitted.source,
+      dataBytes: encoded.stats.dataBytes,
+      paletteBytes: encoded.stats.paletteBytes,
+    });
+  }
+  let index;
+  if (config.general.indexHeader) {
+    const output = resolve(outputRoot, config.general.indexHeader);
+    if (!inside(outputRoot, output)) throw new Error(`index_header escapes output_dir: ${config.general.indexHeader}`);
+    const includes = images.map((image) => `#include "${relative(dirname(output), image.output).replaceAll('\\', '/')}"`);
+    index = { output, source: `#pragma once\n\n${includes.join('\n')}\n` };
+  }
+  return { root, outputRoot, config, images, index, optimization };
+}
+
+/** @param {string} format */
+function tinyAllowedFormats(format) {
+  const mapped = {
+    raw565: 'raw565', 'tinygfx-raw565': 'raw565', rgb565be: 'raw565',
+    rle565: 'rle565', 'tinygfx-rle565': 'rle565',
+    rlepal4: 'rlepal4', 'tinygfx-rlepal4': 'rlepal4',
+    bitmap1h: 'bitmap1h', 'bitmap1-msb': 'bitmap1h',
+    bitmap1v: 'bitmap1v', 'bitmap1-vertical': 'bitmap1v',
+  };
+  if (format === 'auto') return undefined;
+  const candidate = mapped[/** @type {keyof typeof mapped} */ (format)];
+  if (!candidate) throw new Error(`Unknown TinyGFX format: ${format}`);
+  return [candidate];
+}
+
+/**
+ * @param {string} projectDir
+ * @param {{outputDir?: string, prefix?: string, format?: string, target?: string, mode?: 'auto'|'monochrome'|'grayscale'|'indexed'|'true-color', colors?: number, dither?: import('./config.js').Dither, threshold?: number, invert?: boolean, alphaThreshold?: number, alphaColor?: 'auto'|[number, number, number], matte?: [number, number, number], decoderCost?: number, preferBitmap?: 'horizontal'|'vertical', alignedVblit?: boolean, check?: boolean}} [options]
+ */
+export async function writeImageProject(projectDir, options = {}) {
+  const built = await buildImageProject(projectDir, options);
+  const outputs = [...built.images.map((image) => ({ path: image.output, content: image.source })), ...(built.index ? [{ path: built.index.output, content: built.index.source }] : [])];
+  /** @type {{path: string, status: 'written'|'upToDate'|'mismatch'|'missingOutput'}[]} */
+  const results = [];
+  for (const output of outputs) {
+    let previous;
+    try { previous = await readFile(output.path, 'utf8'); }
+    catch (error) {
+      if (/** @type {NodeJS.ErrnoException} */ (error).code !== 'ENOENT') throw error;
+    }
+    if (options.check) {
+      results.push({ path: output.path, status: previous === undefined ? 'missingOutput' : previous === output.content ? 'upToDate' : 'mismatch' });
+      continue;
+    }
+    await mkdir(dirname(output.path), { recursive: true });
+    const temporary = `${output.path}.tmp-${process.pid}`;
+    await writeFile(temporary, output.content, 'utf8');
+    await rename(temporary, output.path);
+    results.push({ path: output.path, status: 'written' });
+  }
+  return { ...built, results };
+}
+
+/** @param {string} projectDir */
+export async function createImagesConfig(projectDir) {
+  const root = resolve(projectDir);
+  await mkdir(root, { recursive: true });
+  const path = join(root, '.imagesconfig');
+  try {
+    await writeFile(path, IMAGES_CONFIG_TEMPLATE, { encoding: 'utf8', flag: 'wx' });
+    return { path, status: /** @type {const} */ ('created') };
+  } catch (error) {
+    if (/** @type {NodeJS.ErrnoException} */ (error).code === 'EEXIST') return { path, status: /** @type {const} */ ('exists') };
+    throw error;
+  }
+}
