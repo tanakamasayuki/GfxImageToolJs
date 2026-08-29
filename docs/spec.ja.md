@@ -9,7 +9,7 @@
 
 - TinyGFX `docs/IMAGE_TOOL.ja.md` — ツールの事前調査
 - TinyGFX `docs/IMAGE_FORMAT.ja.md` — TinyGFX 形式、実測値、最適化根拠
-- TinyGFX `tools/img2h.py` — 実験用実装。正式実装の挙動確認用
+- TinyGFX `tools/img2h.py` — 実験用実装。符号化 byte 列の補助的な交差検査用
 - `LGFXFontToolJs` — Library First、Web、ビルド、Pages、npm リリースの兄弟実装
 - `EmbedAssetToolJs` — フォルダー処理、設定、`--check`、終了コードの構成上の参考
 
@@ -123,10 +123,16 @@ PNG / JPEG / GIF / BMP / WebP / RGBA
 | `tinygfx-raw565` | TinyGFX 生 RGB565 | 必須 |
 | `tinygfx-rle565` | 長さ 8bit＋RGB565 | 必須 |
 | `tinygfx-rlepal4` | 長さ 4bit＋パレット索引 4bit | 必須 |
-| `binary` | 入力ファイルを無変換で埋め込む | 非対象。`embed-asset-tool` の責務 |
+| `binary` | 入力ファイルを無変換で埋め込む | 非対象 |
 
 RGB565 の整数値は `rrrrrggggggbbbbb` とし、`le` / `be` は出力 byte stream の
 並びだけを表す。8bit から 5/6bit への既定変換は上位ビットの切り出しとする。
+
+TinyGFX の `bitmap1h` / `bitmap1v` は独立した画素形式 ID ではない。それぞれ
+`bitmap1-msb` / `bitmap1-vertical` と**同じ byte 列**を使い、`tinygfx` target の
+C emitter が `CellImage` と `tinygfxImageBitmap1hOps` / `tinygfxImageBitmap1vOps` で
+包む。§8 の `bitmap1h` / `bitmap1v` は optimizer 内の候補 ID であり、別 encoder を
+実装してはならない。
 
 ### 3.3 ターゲットプリセット
 
@@ -249,6 +255,9 @@ decoder ID と version を記録する。CI 用 golden は Node adapter を正�
 - threshold は 0..255、既定 128。
 - invert を持つ。
 - 1bpp の余りビットは 0、各 scanline / page は byte boundary に揃える。
+- 横詰めの data bytes は `ceil(width / 8) * height`、縦詰めは
+  `width * ceil(height / 8)`。幅・高さがともに 8 の倍数なら同量だが、一般寸法では
+  異なり得る（例: 1x8 は横 8 B、縦 1 B）。同量時の選択規則は §8.2 で固定する。
 
 ### 6.3 減色
 
@@ -315,7 +324,8 @@ inspectImage(image, options)           // 色数、alpha、候補サイズ、誤
 ### 8.1 候補
 
 `raw565`、`rle565`、`rlepal4`、`bitmap1h`、`bitmap1v` をすべて試す。
-形式を利用者が強制する API も残す。
+形式を利用者が強制する API も残す。`bitmap1h` と `bitmap1v` の byte 列は
+§3.2 の汎用 1bpp encoder を再利用する。
 
 ### 8.2 評価単位
 
@@ -331,14 +341,58 @@ sum(各画像の data + palette + metadata)
 `optimizeImage()` と別に `optimizeImageSet()` を必須 API とする。形式数は少ないため、
 許可された形式集合を全探索して global optimum を得る。
 
+選択順序を次で固定する。
+
+1. `format` または `bitmapLayout` が明示されていれば候補をその指定に制限する。
+2. 画質制約を満たさない候補を除外する。
+3. 上記目的関数が最小の候補を選ぶ。
+4. 完全に同点なら安定した形式順を使う。1bpp 同士の同点は `preferBitmap` で決める。
+
+`preferBitmap` は `horizontal | vertical`。ページ方式パネル（SSD1306 / SH1106 等）と
+`aligned-vblit` 利用時は `vertical`、それ以外は `horizontal` を target preset の既定と
+する。貼り先が既知なら `bitmapLayout` で明示する。ファイル列挙順や object key 順へ
+tie-break を依存させない。
+
 ### 8.3 コストプロファイル
 
 - 初期同梱: `ch32v003` / `avr` / `esp32`。
 - 値は TinyGFX の実測表を初期値とし、出典、TinyGFX version、compiler、flags を持つ。
+- profile は測定した decoder cost が透過判定を含むかを表す
+  `includesTransparency` を必須で持つ。TinyGFX 本実装由来の初期 profile は `true`。
+- `includesTransparency: false` の profile を許す場合は、透過画像を含む形式ごとの
+  `transparencyIncrement` も必須とし、optimizer が一度だけ加算する。既存実測では
+  この増分は形式・MCU により 24〜66 B なので、0 と仮定してはならない。
 - ユーザー定義 JSON profile を受け付ける。
 - 共有デコーダ（`bitmap1h` + `bitmap1v`）の組み合わせコストを表現できる。
 - 未知 MCU ではデータ量のみ、または明示した generic profile で計算し、実測値を装わない。
 - `aligned-vblit` は容量より速度を選ぶ option とし、通常の decoder cost と混同しない。
+  CH32V003 の本実装実測は fast path 244 B、汎用経路 408 B（差 164 B）である。
+  当初見積もりの 24 B は profile に採用しない。ページ境界、回転、帯、panel 外判定、
+  dirty tracking を含む測定条件を profile metadata に記録する。
+
+profile の概念例:
+
+```json
+{
+  "id": "ch32v003",
+  "source": "TinyGFX docs/IMAGE_FORMAT.ja.md",
+  "tinygfxVersion": "measured-version",
+  "compiler": "measured-compiler",
+  "flags": "-Os",
+  "includesTransparency": true,
+  "decoders": {},
+  "sharedDecoders": {},
+  "fastPaths": {
+    "alignedVblit": {
+      "codeBytes": 244,
+      "genericCodeBytes": 408,
+      "purpose": "speed"
+    }
+  }
+}
+```
+
+実際の数値は測定結果から生成し、例の placeholder を製品 profile へ流用しない。
 
 ### 8.4 レポート
 
@@ -418,7 +472,8 @@ static = true
 
 [optimize]
 mcu = ch32v003
-prefer_bitmap = vertical
+bitmap_layout = auto
+prefer_bitmap = horizontal
 aligned_vblit = false
 
 [image "splash.png"]
@@ -640,6 +695,8 @@ util ← model ← transform / format ← target / inspect / optimize
 - `node:test` を使用する。
 - 手書き最小画像: 1x1、端数幅、高さ端数、透明、全色同一、最大 palette 境界。
 - 各 bit / byte order の期待 byte 列を手計算 fixture と完全一致。
+- 1bpp は 1x8 等の非対称寸法で横・縦の容量差を検証し、8 の倍数寸法では
+  `preferBitmap` による安定した同点選択を検証する。
 - 各 transform の golden pixel 一致。
 - 量子化・dither の決定性と golden 一致。
 - PNG/JPEG/GIF/BMP decode、破損入力、巨大寸法拒否。
@@ -652,6 +709,9 @@ util ← model ← transform / format ← target / inspect / optimize
 
 - TinyGFX: 生成ヘッダーを TinyGFX の host test へ読み込み、描画結果を元の変換後 RGBA
   と pixel exact 比較する。全 TinyGFX 形式と透過あり・なしを対象にする。
+- `img2h.py` はオラクルにしない。ラン長の分割、palette index の packing、1bpp bit order
+  について既知 fixture との補助的な交差検査にだけ使う。PNG 以外の decode、減色、
+  dither の正しさを同スクリプトとの一致で判定しない。
 - 一般形式: まず byte layout の仕様 fixture を正とする。可能な target は実ライブラリの
   host build / reference function でも照合する。
 - encode → reference decode → pixel の一致を検証し、自作 encode/decode の往復だけで
@@ -737,9 +797,9 @@ git push --follow-tags
 
 ### Phase 3 — TinyGFX 最適化
 
-- TinyGFX 5 形式と C header
+- TinyGFX 5 optimizer 候補と C header（1bpp 2 候補は汎用 encoder を共有）
 - MCU cost profiles、共有 decoder cost、集合最適化
-- TinyGFX host oracle、実験用 `img2h.py` との fixture 比較
+- TinyGFX host oracle、実験用 `img2h.py` との補助的な符号化 fixture 交差検査
 
 ### Phase 4 — Web project workspace
 
@@ -781,7 +841,8 @@ git push --follow-tags
 2. generic-c と主要 5 GFX targetについて、画像ごとの自己完結したヘッダーが生成できる。
 3. 単一画像と任意 directory の build / inspect / init / check が動く。
 4. Web で複数画像、共通設定＋画像別上書き、設定再 import、個別 `.h` / ZIP download が動く。
-5. TinyGFX 5 形式、MCU profile、集合最適化が動き、`img2h.py` の既知 fixture と一致する。
+5. TinyGFX 5 候補、MCU profile、集合最適化が動き、TinyGFX host test の描画結果と
+   pixel exact で一致する。`img2h.py` との一致は符号化 byte 列の補助検査とする。
 6. byte order、bit order、alpha、端数幅、palette 境界を golden test で固定している。
 7. `npm run check`、build、types、dist smoke、site build が CI で通る。
 8. README（日英）、CLI 文書（日英）、format 文書、release 文書、CHANGELOG がある。
