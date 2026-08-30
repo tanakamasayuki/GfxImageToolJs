@@ -9,7 +9,8 @@ gfx-image-tool init [directory]
 ```
 
 A file path converts one image. A directory path recursively builds a project configured by
-`.imagesconfig`. `init` never overwrites an existing configuration.
+`.imagesconfig`. Directory builds emit one bundled `generated/images.h` by default; set
+`[general] output_mode = split` for per-image headers. `init` never overwrites an existing configuration.
 
 Common options include `--out`, `--target`, `--format`, `--name`, `--prefix`, `--threshold`,
 `--alpha-threshold`, `--dither`, `--colors`, `--matte`, `--check`, and `--json`.
@@ -24,7 +25,7 @@ Use `--target tinygfx`; its default format is `auto`. The candidates are `raw565
 1bpp candidates for images with more than two colors. `--aligned-vblit` prefers the vertical layout
 and reports its measured fast-path cost separately from the optimizer total.
 
-For projects, set `[alpha] mode = preserve` and `threshold = 128` to preserve source alpha as a
+For projects, set `[alpha] mode = color-key` and `threshold = 128` to preserve source alpha as a
 collision-free TinyGFX transparent color or palette index. Set `[optimize] decoder_cost = 400` and
 `prefer_bitmap = horizontal|vertical` to configure set optimization. Per-image sections may fix a
 format and override `alpha_mode` or `alpha_threshold`.

@@ -6,7 +6,7 @@ import { basename, dirname, extname, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { buildImageProject, createImagesConfig, decodeImageFile, writeImageProject } from '../src/node/index.js';
-import { emitCSource, encodeImage, inspectImage, listFormats, listTargets, optimizeTinyImage, reduceImageColors, rgb565, transformImage } from '../src/index.js';
+import { emitCSource, encodeImage, grayscaleImage, inspectImage, listFormats, listTargets, optimizeTinyImage, reduceImageColors, rgb565, transformImage } from '../src/index.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const VERSION = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).version;
@@ -85,12 +85,13 @@ function parseMatte(value) {
   return [0, 2, 4].map((at) => parseInt(match[1].slice(at, at + 2), 16));
 }
 
-/** @param {string | undefined} value */
+/** @param {string | undefined} value @returns {'auto'|[number, number, number]|undefined} */
 function parseTransparentColor(value) {
-  if (value === undefined || value === 'auto') return value;
-  const color = parseMatte(value);
-  if (!color) throw new CliError('--transparent-color must be RRGGBB or auto.', 3);
-  return /** @type {[number, number, number]} */ (color);
+  if (value === undefined) return undefined;
+  if (value === 'auto') return 'auto';
+  const match = /^#?([0-9a-fA-F]{6})$/.exec(value);
+  if (!match) throw new CliError('--transparent-color must be RRGGBB or auto.', 3);
+  return /** @type {[number, number, number]} */ ([0, 2, 4].map((at) => parseInt(match[1].slice(at, at + 2), 16)));
 }
 
 /** @param {string} path */
@@ -133,7 +134,8 @@ async function run(command, argv) {
   if (!['none', 'floyd-steinberg', 'bayer2', 'bayer4', 'bayer8'].includes(dither)) {
     throw new CliError(`unknown dither: ${dither}`, 3);
   }
-  const mode = parsed.values.mode ?? (parsed.values.monochrome ? 'monochrome' : 'auto');
+  const modeOption = parsed.values.mode ?? (parsed.values.monochrome ? 'monochrome' : undefined);
+  const mode = modeOption ?? 'auto';
   if (!['auto', 'monochrome', 'grayscale', 'indexed', 'true-color'].includes(mode)) throw new CliError(`unknown mode: ${mode}`, 3);
   const matte = parseMatte(parsed.values.matte);
   const transparentColor = parseTransparentColor(parsed.values['transparent-color']);
@@ -144,7 +146,7 @@ async function run(command, argv) {
       prefix: parsed.values.prefix,
       format: parsed.values.format,
       target: parsed.values.target,
-      mode: /** @type {'auto'|'monochrome'|'grayscale'|'indexed'|'true-color'} */ (mode),
+      mode: /** @type {'auto'|'monochrome'|'grayscale'|'indexed'|'true-color'|undefined} */ (modeOption),
       colors: parsed.values.colors === undefined ? undefined : colors,
       dither: parsed.values.dither === undefined ? undefined : /** @type {'none'|'floyd-steinberg'|'bayer2'|'bayer4'|'bayer8'} */ (dither),
       threshold: parsed.values.threshold === undefined ? undefined : threshold,
@@ -222,6 +224,7 @@ async function run(command, argv) {
   if (!info.isFile()) throw new CliError(`not a file or directory: ${input}`, 1);
   let image = await decodeImageFile(input);
   if (matte) image = transformImage(image, { alpha: { mode: 'none', matte } });
+  if (mode === 'grayscale') image = grayscaleImage(image);
   if (mode === 'indexed') {
     if (dither !== 'none' && dither !== 'floyd-steinberg') throw new CliError('indexed mode only supports none or floyd-steinberg dither.', 3);
     image = reduceImageColors(image, colors, { dither }).image;

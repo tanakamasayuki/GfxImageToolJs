@@ -99,6 +99,19 @@ export function compositeAlpha(image, matte = [0, 0, 0]) {
   return createImage(image.width, image.height, out, { source: image.source });
 }
 
+/** @param {GfxImage} image */
+export function grayscaleImage(image) {
+  image = validateImage(image);
+  const pixels = Uint8Array.from(image.pixels);
+  for (let at = 0; at < pixels.length; at += 4) {
+    const value = (54 * pixels[at] + 183 * pixels[at + 1] + 19 * pixels[at + 2] + 128) >> 8;
+    pixels[at] = value;
+    pixels[at + 1] = value;
+    pixels[at + 2] = value;
+  }
+  return createImage(image.width, image.height, pixels, { source: image.source });
+}
+
 /**
  * @param {GfxImage} image
  * @param {{crop?: {x: number, y: number, width: number, height: number}, resize?: {width: number, height: number, filter?: 'nearest'|'bilinear'}, alpha?: {mode?: 'preserve'|'none', matte?: ArrayLike<number>}}} [options]

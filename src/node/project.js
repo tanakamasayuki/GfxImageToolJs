@@ -4,7 +4,7 @@ import { dirname, extname, isAbsolute, join, relative, resolve } from 'node:path
 import { decodeImageFile } from './decode.js';
 import { IMAGES_CONFIG_TEMPLATE, parseImagesConfig, resolveImageConfig } from './config.js';
 import { buildGlobMatcher, buildImagesIgnoreMatcher } from './ignore.js';
-import { transformImage } from '../transform/transform.js';
+import { grayscaleImage, transformImage } from '../transform/transform.js';
 import { encodeImage, rgb565 } from '../format/registry.js';
 import { reduceImageColors } from '../transform/quantize.js';
 import { emitCSource, sanitizeIdentifier } from '../target/csource.js';
@@ -66,6 +66,11 @@ function defaultSymbol(relativePath) {
   return relativePath.slice(0, relativePath.length - extname(relativePath).length).replaceAll('/', '_');
 }
 
+/** @param {'auto'|[number, number, number]} color */
+function transparent565(color) {
+  return color === 'auto' ? undefined : rgb565(color[0], color[1], color[2]);
+}
+
 /**
  * Build every prospective header without writing.
  * @param {string} projectDir
@@ -93,12 +98,16 @@ export async function buildImageProject(projectDir, options = {}) {
   if (options.preferBitmap !== undefined) config.optimize.preferBitmap = options.preferBitmap;
   else if (options.alignedVblit) config.optimize.preferBitmap = 'vertical';
   const outputRoot = resolve(root, config.general.outputDir);
+  const bundleOutput = resolve(outputRoot, config.general.outputFile);
+  if (!inside(outputRoot, bundleOutput)) throw new Error(`output_file escapes output_dir: ${config.general.outputFile}`);
   const entries = await collectImageEntries(root, config);
   const prepared = [];
+  const symbols = new Map();
   for (const entry of entries) {
     const effective = resolveImageConfig(config, entry.relative);
     let image = await decodeImageFile(entry.absolute);
     if (effective.alpha.mode === 'none') image = transformImage(image, { alpha: { mode: 'none', matte: effective.alpha.matte } });
+    if (effective.color.mode === 'grayscale') image = grayscaleImage(image);
     if (effective.color.mode === 'indexed') {
       if (!['none', 'floyd-steinberg'].includes(effective.color.dither)) throw new Error(`Indexed color only supports none or floyd-steinberg dither: ${entry.relative}`);
       image = reduceImageColors(image, effective.color.colors, {
@@ -106,8 +115,13 @@ export async function buildImageProject(projectDir, options = {}) {
       }).image;
     }
     const symbol = sanitizeIdentifier(effective.symbol || `${config.general.prefix}${defaultSymbol(entry.relative)}`);
-    const relativeOutput = (effective.output || headerRelative(entry.relative)).replaceAll('\\', '/');
-    const output = resolve(outputRoot, relativeOutput);
+    const previous = symbols.get(symbol);
+    if (previous) throw new Error(`C symbol collision: ${symbol} (${previous} and ${entry.relative})`);
+    symbols.set(symbol, entry.relative);
+    const relativeOutput = config.general.outputMode === 'bundle'
+      ? config.general.outputFile
+      : (effective.output || headerRelative(entry.relative)).replaceAll('\\', '/');
+    const output = config.general.outputMode === 'bundle' ? bundleOutput : resolve(outputRoot, relativeOutput);
     if (!inside(outputRoot, output)) throw new Error(`Image output escapes output_dir: ${relativeOutput}`);
     prepared.push({ entry, effective, image, symbol, output });
   }
@@ -120,9 +134,7 @@ export async function buildImageProject(projectDir, options = {}) {
     invert: item.effective.color.invert,
     dither: item.effective.color.dither,
     alphaThreshold: item.effective.alpha.mode === 'color-key' ? item.effective.alpha.threshold : undefined,
-    transparentColor: item.effective.alpha.color === 'auto'
-      ? undefined
-      : rgb565(...item.effective.alpha.color),
+    transparentColor: transparent565(/** @type {'auto'|[number, number, number]} */ (item.effective.alpha.color)),
     allowedFormats: tinyAllowedFormats(item.effective.color.format),
   })), {
     decoderCost: config.optimize.decoderCost,
@@ -151,6 +163,7 @@ export async function buildImageProject(projectDir, options = {}) {
       storage: effective.csource.storage,
       align: effective.csource.align,
       static: effective.csource.static,
+      fragment: config.general.outputMode === 'bundle',
     });
     images.push({
       input: entry.absolute,
@@ -163,14 +176,30 @@ export async function buildImageProject(projectDir, options = {}) {
       paletteBytes: encoded.stats.paletteBytes,
     });
   }
+  const usesTinyGfx = prepared.some((item) => item.effective.general.target === 'tinygfx');
+  const bundle = config.general.outputMode === 'bundle' ? {
+    output: bundleOutput,
+    source: [
+      '#pragma once',
+      '#include <stdint.h>',
+      ...(usesTinyGfx ? [
+        '',
+        '#if !defined(TINYGFX_IMAGE_SPEC_VERSION)',
+        '#error "Include <TinyGFX/Image.h> before this generated image header"',
+        '#endif',
+      ] : []),
+      '',
+      ...images.flatMap((image) => [`// ---- ${image.relative} ----`, image.source.trimEnd(), '']),
+    ].join('\n'),
+  } : undefined;
   let index;
-  if (config.general.indexHeader) {
+  if (config.general.outputMode === 'split' && config.general.indexHeader) {
     const output = resolve(outputRoot, config.general.indexHeader);
     if (!inside(outputRoot, output)) throw new Error(`index_header escapes output_dir: ${config.general.indexHeader}`);
     const includes = images.map((image) => `#include "${relative(dirname(output), image.output).replaceAll('\\', '/')}"`);
     index = { output, source: `#pragma once\n\n${includes.join('\n')}\n` };
   }
-  return { root, outputRoot, config, images, index, optimization };
+  return { root, outputRoot, config, images, bundle, index, optimization };
 }
 
 /** @param {string} format */
@@ -194,7 +223,9 @@ function tinyAllowedFormats(format) {
  */
 export async function writeImageProject(projectDir, options = {}) {
   const built = await buildImageProject(projectDir, options);
-  const outputs = [...built.images.map((image) => ({ path: image.output, content: image.source })), ...(built.index ? [{ path: built.index.output, content: built.index.source }] : [])];
+  const outputs = built.bundle
+    ? [{ path: built.bundle.output, content: built.bundle.source }]
+    : [...built.images.map((image) => ({ path: image.output, content: image.source })), ...(built.index ? [{ path: built.index.output, content: built.index.source }] : [])];
   /** @type {{path: string, status: 'written'|'upToDate'|'mismatch'|'missingOutput'}[]} */
   const results = [];
   for (const output of outputs) {

@@ -8,3 +8,5 @@
 - (JA) 決定的な索引色減色、ディレクトリプロジェクト、設定、checkモード、GFXターゲットpresetを追加。
 - (EN) Add TinyGFX five-format encoding, fixed decoder-cost set optimization, CellImage headers, stable bitmap tie-breaking, and alpha transparency.
 - (JA) TinyGFXの5形式エンコード、固定デコーダコストによる集合最適化、CellImageヘッダー、安定した1bpp同点選択、alpha透過を追加。
+- (EN) Bundle directory projects into one header by default, with an optional split mode and symbol-collision checks.
+- (JA) directory projectの既定出力をheader 1本へまとめ、任意のsplit modeとsymbol衝突検査を追加。

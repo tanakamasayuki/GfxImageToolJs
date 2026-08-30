@@ -4,7 +4,7 @@ import { buildGlobMatcher } from './ignore.js';
 /** @typedef {'none'|'floyd-steinberg'|'bayer2'|'bayer4'|'bayer8'} Dither */
 /**
  * @typedef {object} ImagesConfig
- * @property {{outputDir: string, prefix: string, target: string, indexHeader: string}} general
+ * @property {{outputDir: string, outputMode: 'bundle'|'split', outputFile: string, prefix: string, target: string, indexHeader: string}} general
  * @property {{patterns: string[]}} input
  * @property {{format: string, mode: 'auto'|'monochrome'|'grayscale'|'indexed'|'true-color', colors: number, dither: Dither, threshold: number, invert: boolean}} color
  * @property {{mode: 'none'|'color-key', matte: [number, number, number], threshold: number, color: 'auto'|[number, number, number]}} alpha
@@ -89,11 +89,15 @@ export function parseImagesConfig(text) {
   const colorMode = color.mode || 'auto';
   if (!['auto', 'monochrome', 'grayscale', 'indexed', 'true-color'].includes(colorMode)) throw new Error(`Unknown color mode: ${colorMode}`);
   const alignedVblit = bool(optimize.aligned_vblit, false, 'optimize.aligned_vblit');
+  const outputMode = general.output_mode || 'bundle';
+  if (outputMode !== 'bundle' && outputMode !== 'split') throw new Error(`Unknown output_mode: ${outputMode}`);
   const preferBitmap = optimize.prefer_bitmap || (alignedVblit ? 'vertical' : 'horizontal');
   if (preferBitmap !== 'horizontal' && preferBitmap !== 'vertical') throw new Error(`Unknown prefer_bitmap: ${preferBitmap}`);
   return {
     general: {
       outputDir: general.output_dir || 'generated',
+      outputMode: /** @type {'bundle'|'split'} */ (outputMode),
+      outputFile: general.output_file || 'images.h',
       prefix: general.prefix || '',
       target: general.target || 'generic-c',
       indexHeader: general.index_header || '',
@@ -189,6 +193,8 @@ export const IMAGES_CONFIG_TEMPLATE = `# gfx-image-tool project configuration
 
 [general]
 output_dir = generated
+output_mode = bundle
+output_file = images.h
 prefix =
 target = generic-c
 # index_header = images.h

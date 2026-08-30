@@ -33,6 +33,7 @@ prefix = ui_
 [alpha]
 matte = #102030
 threshold = 96
+color = 123456
 
 [image "icons/*.png"]
 format = indexed8
@@ -44,6 +45,7 @@ threshold = 99
 `);
   assert.deepEqual(config.alpha.matte, [0x10, 0x20, 0x30]);
   assert.equal(config.alpha.threshold, 96);
+  assert.deepEqual(config.alpha.color, [0x12, 0x34, 0x56]);
   const normal = resolveImageConfig(config, 'photo.png');
   assert.equal(normal.color.format, 'rgb565be');
   const icon = resolveImageConfig(config, 'icons/wifi.png');
@@ -80,6 +82,7 @@ test('project writes one header per image and check is read-only', async () => {
   await writeFile(join(root, '.imagesconfig'), `
 [general]
 output_dir = generated
+output_mode = split
 prefix = ui_
 index_header = all_images.h
 
@@ -139,7 +142,10 @@ prefer_bitmap = horizontal
   assert.equal(built.optimization.formats.length, 1);
   assert.equal(built.optimization.decoderBytes, 400);
   assert.deepEqual(built.optimization.vblit, { selected: 'generic', alignedBytes: 244, genericBytes: 408 });
-  assert.match(await readFile(join(root, 'generated', 'red.h'), 'utf8'), /const CellImage red/);
+  const bundle = await readFile(join(root, 'generated', 'images.h'), 'utf8');
+  assert.match(bundle, /const CellImage red/);
+  assert.match(bundle, /const CellImage blue/);
+  assert.equal(built.results.length, 1);
 });
 
 test('TinyGFX project preserves alpha through CellImage transparency', async () => {
@@ -158,10 +164,35 @@ target = tinygfx
 format = raw565
 
 [alpha]
-mode = preserve
+mode = color-key
 threshold = 128
 `);
   await writeImageProject(root);
-  const header = await readFile(join(root, 'generated', 'icon.h'), 'utf8');
+  const header = await readFile(join(root, 'generated', 'images.h'), 'utf8');
   assert.match(header, /  0x0001,\n  0,\n  1,/);
+});
+
+test('project bundle detects symbols that sanitize to the same identifier', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'gfx-image-symbol-collision-'));
+  await png(join(root, 'a-b.png'), ['#ff0000']);
+  await png(join(root, 'a_b.png'), ['#0000ff']);
+  await assert.rejects(writeImageProject(root), /C symbol collision: a_b/);
+});
+
+test('indexed mode reduces TinyGFX input before a forced palette encoding', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'gfx-image-tiny-indexed-'));
+  await png(join(root, 'gradient.png'), Array.from({ length: 20 }, (_, i) => `rgb(${i * 12}, ${255 - i * 12}, ${i * 7})`));
+  await writeFile(join(root, '.imagesconfig'), `
+[general]
+target = tinygfx
+
+[color]
+format = rlepal4
+mode = indexed
+colors = 4
+`);
+  const built = await writeImageProject(root);
+  assert.equal(built.images[0].format, 'rlepal4');
+  assert.ok(built.images[0].paletteBytes <= 8);
+  assert.match(await readFile(join(root, 'generated', 'images.h'), 'utf8'), /tinygfxImageRlepal4Ops/);
 });

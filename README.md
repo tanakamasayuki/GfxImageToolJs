@@ -16,7 +16,8 @@ node bin/gfx-image-tool.js inspect icon.png
 node bin/gfx-image-tool.js build icon.png --format rgb565be --out icon.h
 ```
 
-Directory projects generate one self-contained header per source image:
+Directory projects generate one bundled `generated/images.h` by default. Set
+`output_mode = split` in `.imagesconfig` for separate per-image headers:
 
 ```sh
 gfx-image-tool init ./images
@@ -39,7 +40,7 @@ gfx-image-tool inspect ./images --target tinygfx --json
 
 The optimizer considers `raw565`, `rle565`, `rlepal4`, `bitmap1h`, and `bitmap1v`.
 Directory builds optimize all images as a set, including the fixed decoder cost (400 bytes per
-format by default and 1.3x when both bitmap layouts are used). Set `[alpha] mode = preserve` to
+format by default and 1.3x when both bitmap layouts are used). Set `[alpha] mode = color-key` to
 translate source alpha into a collision-free TinyGFX transparent color or palette index.
 
 Generated headers are self-contained image assets. Include `<TinyGFX/Image.h>` before them and

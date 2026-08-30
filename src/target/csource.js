@@ -47,8 +47,8 @@ function palette565(palette) {
   return out;
 }
 
-/** @param {import('../format/registry.js').EncodedImage} encoded @param {string} name @param {number} align @param {string} linkage */
-function emitTinyGfx(encoded, name, align, linkage) {
+/** @param {import('../format/registry.js').EncodedImage} encoded @param {string} name @param {number} align @param {string} linkage @param {boolean} fragment */
+function emitTinyGfx(encoded, name, align, linkage, fragment) {
   if (encoded.width > 0xffff || encoded.height > 0xffff || encoded.data.length > 0xffff) {
     throw new EncodeConstraintError('TINYGFX_FIELD_OVERFLOW', 'TinyGFX width, height, and data length must fit uint16_t.');
   }
@@ -64,13 +64,15 @@ function emitTinyGfx(encoded, name, align, linkage) {
   if ((encoded.format === 'bitmap1-msb' || encoded.format === 'bitmap1-vertical') && !palette) palette = Uint16Array.from([0x0000, 0xffff]);
   const paletteName = palette ? `${name}Palette` : 'NULL';
   const lines = [
-    '#pragma once',
-    '#include <stdint.h>',
-    '',
-    '#if !defined(TINYGFX_IMAGE_SPEC_VERSION)',
-    '#error "Include <TinyGFX/Image.h> before this generated image header"',
-    '#endif',
-    '',
+    ...(!fragment ? [
+      '#pragma once',
+      '#include <stdint.h>',
+      '',
+      '#if !defined(TINYGFX_IMAGE_SPEC_VERSION)',
+      '#error "Include <TinyGFX/Image.h> before this generated image header"',
+      '#endif',
+      '',
+    ] : []),
     `// tinygfx: ${encoded.format}, ${encoded.width}x${encoded.height}, ${encoded.data.length} data bytes`,
     `alignas(${align}) ${linkage}const uint8_t ${name}Data[${encoded.data.length}] TINYGFX_IMAGE_PROGMEM = {`,
     byteArray(encoded.data),
@@ -103,7 +105,7 @@ function emitTinyGfx(encoded, name, align, linkage) {
 /**
  * @param {import('../format/registry.js').EncodedImage} encoded
  * @param {string} [target]
- * @param {{name?: string, storage?: string, align?: number, static?: boolean}} [options]
+ * @param {{name?: string, storage?: string, align?: number, static?: boolean, fragment?: boolean}} [options]
  */
 export function emitCSource(encoded, target = 'generic-c', options = {}) {
   if (!listTargets().includes(target)) throw new UnsupportedFormatError('UNSUPPORTED_TARGET', `Unsupported target: ${target}`, { target });
@@ -117,14 +119,12 @@ export function emitCSource(encoded, target = 'generic-c', options = {}) {
   const storage = String(options.storage ?? 'PROGMEM').trim();
   const linkage = options.static === false ? '' : 'static ';
   const suffix = storage ? ` ${storage}` : '';
-  if (target === 'tinygfx') return emitTinyGfx(encoded, name, align, linkage);
+  if (target === 'tinygfx') return emitTinyGfx(encoded, name, align, linkage, !!options.fragment);
   const nativeWordPalette = encoded.palette instanceof Uint16Array;
   const wordPalette = nativeWordPalette || (target !== 'generic-c' && !!encoded.palette);
   const paletteCount = encoded.palette ? (nativeWordPalette ? encoded.palette.length : encoded.palette.length / 3) : 0;
   const source = [
-    '#pragma once',
-    '#include <stdint.h>',
-    '',
+    ...(!options.fragment ? ['#pragma once', '#include <stdint.h>', ''] : []),
     `// ${target}: ${encoded.format}, ${encoded.width}x${encoded.height}, ${encoded.data.length} data bytes`,
     `// Usage: ${targetUsage(target, encoded.format, name, encoded.width, encoded.height)}`,
     `alignas(${align}) ${linkage}const uint8_t ${name}_data[${encoded.data.length}]${suffix} = {`,

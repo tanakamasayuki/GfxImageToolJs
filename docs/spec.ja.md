@@ -418,16 +418,22 @@ asset bundle への取り込み、元画像ファイルの埋め込みは行わ�
 再帰処理する。directory 名を `images` 等に限定しない。プロジェクト root に
 `.imagesconfig` と `.imagesignore` を置ける。
 
-出力は**画像 1 枚につき自己完結した `.h` 1 本**を既定とする。入力相対パス順で
-安定生成し、元の directory 構造を出力 directory に保つ。必要なら各 `.h` を include
-するだけの index header を追加生成できるが、全画像を 1 本の巨大な header へ
-結合する方式は既定にしない。生成先・設定ファイル自身は入力から除外する。
+単一画像入力は自己完結した `.h` 1 本を生成する。directory入力は全画像をまとめた
+**project header 1 本**を既定とする。利用側のincludeとWebからのdownloadが1ファイルで
+済み、未参照の`static const`データは通常の`-fdata-sections` / `--gc-sections`構成で除去
+できるためである。symbolは入力相対パス順で安定生成し、bundle内の衝突を検出する。
+
+画像ごとのheaderが必要な場合だけ`output_mode = split`を指定する。split時は元のdirectory
+構造を出力directoryへ保ち、任意のindex headerを生成できる。生成先・設定ファイル自身は
+入力から除外する。
 
 設定例:
 
 ```ini
 [general]
 output_dir = generated
+output_mode = bundle
+output_file = images.h
 prefix = images
 target = generic-c
 index_header =
@@ -541,7 +547,8 @@ UI framework なしの静的アプリを GitHub Pages で配信する。単一�
 3. 一覧で寸法、元色数、alpha、候補形式、変換後容量を比較する。
 4. 画像を選び、共通設定を画像単位で上書きしてプレビューする。
 5. TinyGFX では全画像を集合最適化し、画像別最小との差を確認する。
-6. 各 `.h`、`.imagesconfig`、変換 report を個別または ZIP で download する。
+6. project `.h`、`.imagesconfig`、変換 report をdownloadする。split modeでは個別headerを
+   ZIPでもdownloadできる。
 
 1 枚だけ投入した場合も同じ画面を簡易モードとして使える。別の「お試し専用画面」は
 作らず、初期状態では基本項目だけを見せる。
@@ -779,7 +786,7 @@ git push --follow-tags
 
 ### Phase 2 — フォルダー運用と主要 GFX
 
-- Node decoder、任意 directory、`.imagesconfig`、`.imagesignore`、画像ごとの `.h`
+- Node decoder、任意 directory、`.imagesconfig`、`.imagesignore`、bundle / split `.h`
 - quantize / indexed8
 - Adafruit_GFX、U8g2、LovyanGFX、Arduino_GFX、TFT_eSPI presets
 - `init`、`--check`、JSON report、CI/package/release scripts
@@ -792,7 +799,7 @@ git push --follow-tags
 
 ### Phase 4 — Web project workspace
 
-- 複数画像 workspace、共通設定＋画像別 override、設定 import / export、ZIP download
+- 複数画像 workspace、共通設定＋画像別 override、設定 import / export、project `.h` download
 - Converter / Optimizer UI、i18n、Pages
 - npm dist / types / CDN
 
@@ -826,9 +833,9 @@ git push --follow-tags
 `0.1.0` は次をすべて満たした時点で公開可能とする。
 
 1. PNG / JPEG / GIF / BMP を Node CLI で読み、必須の汎用形式へ変換できる。
-2. generic-c と主要 5 GFX targetについて、画像ごとの自己完結したヘッダーが生成できる。
+2. generic-c と主要 5 GFX targetについて、bundleと画像別splitのヘッダーが生成できる。
 3. 単一画像と任意 directory の build / inspect / init / check が動く。
-4. Web で複数画像、共通設定＋画像別上書き、設定再 import、個別 `.h` / ZIP download が動く。
+4. Web で複数画像、共通設定＋画像別上書き、設定再 import、project `.h` download が動く。
 5. TinyGFX 5 候補、固定 decoder cost、集合最適化が動き、TinyGFX host test の描画結果と
    pixel exact で一致する。`img2h.py` との一致は符号化 byte 列の補助検査とする。
 6. byte order、bit order、alpha、端数幅、palette 境界を golden test で固定している。

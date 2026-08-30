@@ -104,6 +104,14 @@ test('TinyGFX bitmap forces transparent pixels to zero', () => {
   assert.equal(bitmap?.transparent, undefined);
 });
 
+test('TinyGFX accepts an explicit non-colliding transparent color', () => {
+  const image = createImage(2, 1, [0, 0, 0, 255, 255, 255, 255, 0]);
+  const raw = encodeTinyCandidates(image, { alphaThreshold: 128, transparentColor: 0x1234 })
+    .find((candidate) => candidate.format === 'tinygfx-raw565');
+  assert.deepEqual(raw?.transparent, { kind: 'color', value: 0x1234 });
+  assert.throws(() => encodeTinyCandidates(image, { alphaThreshold: 128, transparentColor: 0x0000 }), /used by a visible pixel/);
+});
+
 test('forced TinyGFX monochrome shares generic dither and invert bytes', () => {
   const pixels = [];
   for (let value = 0; value < 8; value++) pixels.push(value * 32, value * 32, value * 32, 255);

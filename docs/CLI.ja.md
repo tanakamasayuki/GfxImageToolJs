@@ -9,7 +9,8 @@ gfx-image-tool init [directory]
 ```
 
 `path`がファイルなら1枚を変換し、ディレクトリなら`.imagesconfig`を読み込んで
-対象画像を再帰処理します。`init`は設定ファイルが既にある場合は上書きしません。
+対象画像を再帰処理し、既定で`generated/images.h` 1本へまとめます。`init`は設定ファイルが
+既にある場合は上書きしません。`[general] output_mode = split`で画像別headerへ切り替えられます。
 
 ## 共通オプション
 
@@ -18,10 +19,12 @@ gfx-image-tool init [directory]
 | `--out <path>` | 単一画像の出力ヘッダー、またはprojectの出力directory |
 | `--target <id>` | C出力target。TinyGFXは`tinygfx` |
 | `--format <id>` | 形式を固定。TinyGFXの既定は`auto` |
+| `--mode <mode>` | `auto`、`monochrome`、`grayscale`、`indexed`、`true-color` |
 | `--name <id>` | 単一画像のC symbol |
 | `--prefix <id>` | project内の全symbolへ付けるprefix |
 | `--threshold <0..255>` | 1bppの輝度threshold |
 | `--alpha-threshold <0..255>` | alphaを透過と判定するthreshold |
+| `--transparent-color <RRGGBB\|auto>` | TinyGFXの透過色。既定は自動選択 |
 | `--dither <mode>` | `none`、`floyd-steinberg`、`bayer2/4/8` |
 | `--colors <2..256>` | `indexed8`の最大palette数 |
 | `--matte <RRGGBB>` | alphaを指定色へ合成 |
@@ -39,7 +42,8 @@ TinyGFXでは`--decoder-cost <N>`で1形式分の固定コストを変更でき�
 [general]
 target = tinygfx
 output_dir = generated
-index_header = images.h
+output_mode = bundle
+output_file = images.h
 
 [color]
 format = auto
@@ -47,8 +51,9 @@ mode = auto
 threshold = 128
 
 [alpha]
-mode = preserve
+mode = color-key
 threshold = 128
+color = auto
 
 [optimize]
 decoder_cost = 400

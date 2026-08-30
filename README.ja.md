@@ -16,7 +16,8 @@ node bin/gfx-image-tool.js inspect icon.png
 node bin/gfx-image-tool.js build icon.png --format rgb565be --out icon.h
 ```
 
-ディレクトリを指定すると、対象画像ごとに自己完結した`.h`を生成します。
+ディレクトリを指定すると、対象画像を既定で`generated/images.h` 1本へまとめます。
+画像ごとのheaderが必要なら`.imagesconfig`で`output_mode = split`を指定します。
 
 ```sh
 gfx-image-tool init ./images
@@ -73,7 +74,8 @@ lcd.drawImage(&iconRef, 10, 10);
 ```
 
 PNG等のalphaをTinyGFXの透過色へ変換するには、プロジェクト設定で
-`alpha.mode = preserve`を指定します。可視画素と衝突しないRGB565値を自動選択し、
+[alpha]の`mode = color-key`を指定します。`color = auto`では可視画素と衝突しない
+RGB565値を自動選択し、
 パレット形式では対応するpalette indexを出力します。
 
 ## `.imagesconfig`
@@ -81,15 +83,17 @@ PNG等のalphaをTinyGFXの透過色へ変換するには、プロジェクト�
 ```ini
 [general]
 output_dir = generated
+output_mode = bundle
+output_file = images.h
 prefix = ui_
 target = arduino-gfx
-index_header = all_images.h
 
 [color]
 format = rgb565le
 colors = 256
 dither = none
 threshold = 128
+color = auto
 invert = false
 
 [alpha]
