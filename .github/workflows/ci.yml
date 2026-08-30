@@ -19,4 +19,5 @@ jobs:
       - run: npm run build
       - run: npm run types
       - run: npm run smoke:dist
+      - run: npm run build:site
       - run: npm pack --dry-run

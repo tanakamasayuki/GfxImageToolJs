@@ -20,7 +20,7 @@ export {
   tinyCandidateId,
   tinyDecoderSetCost,
 } from './optimize/tinygfx.js';
-export { emitCSource, sanitizeIdentifier } from './target/csource.js';
+export { emitCSource, emitCBundle, sanitizeIdentifier } from './target/csource.js';
 export { listTargets, targetFormats, targetSupports } from './target/presets.js';
 export {
   GfxImageError,

@@ -21,6 +21,10 @@
       "types": "./types/node/index.d.ts",
       "default": "./src/node/index.js"
     },
+    "./browser": {
+      "types": "./types/browser/index.d.ts",
+      "default": "./src/browser/index.js"
+    },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
@@ -55,14 +59,21 @@
     "type": "git",
     "url": "git+https://github.com/tanakamasayuki/GfxImageToolJs.git"
   },
+  "bugs": {
+    "url": "https://github.com/tanakamasayuki/GfxImageToolJs/issues"
+  },
+  "homepage": "https://tanakamasayuki.github.io/GfxImageToolJs/",
   "scripts": {
     "test": "node --test \"test/*.test.js\"",
     "test:watch": "node --test --watch \"test/*.test.js\"",
     "build": "node scripts/build.js",
+    "build:site": "node scripts/build-site.js",
+    "serve": "node scripts/serve.js",
     "types": "tsc -p tsconfig.types.json",
     "typecheck": "tsc --noEmit",
     "smoke:dist": "node scripts/smoke-dist.js",
-    "check": "npm run test && npm run typecheck",
+    "check:locales": "node scripts/check-locales.js",
+    "check": "npm run test && npm run typecheck && npm run check:locales",
     "prepack": "npm run build && npm run types",
     "preversion": "npm run check && node scripts/check-releasable.js",
     "version": "node scripts/sync-version.js"

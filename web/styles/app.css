@@ -1,0 +1,79 @@
+:root {
+  --bg: #f3f6f6; --panel: #fff; --border: #d3dede; --text: #172425;
+  --muted: #607173; --accent: #0b736d; --accent-soft: #dcefed; --danger: #a73a3a;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--text); background: var(--bg); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+button, input, select { font: inherit; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 12px 20px; background: var(--panel); border-bottom: 1px solid var(--border); }
+.topbar h1 { margin: 0; font-size: 18px; }
+.topbar p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+.top-actions { display: flex; align-items: end; gap: 16px; }
+.top-actions label { display: flex; flex-direction: column; gap: 2px; color: var(--muted); font-size: 10px; }
+.top-actions a { color: var(--accent); text-decoration: none; font-size: 13px; }
+.workspace { max-width: 1320px; margin: 0 auto; padding: 16px 16px 70px; display: flex; flex-direction: column; gap: 14px; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 11px; padding: 15px; box-shadow: 0 1px 2px rgba(20,40,40,.03); }
+.card h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 15px; }
+.step { display: inline-grid; place-items: center; width: 23px; height: 23px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; }
+.drop-zone { min-height: 110px; padding: 18px 22px; border: 2px dashed #9fbdbc; border-radius: 9px; display: flex; align-items: center; justify-content: space-between; gap: 20px; background: #f8fbfb; transition: .15s; }
+.drop-zone.drag { border-color: var(--accent); background: var(--accent-soft); }
+.drop-zone h2 { margin: 0 0 5px; font-size: 17px; }
+.drop-zone p { margin: 2px 0; color: var(--muted); font-size: 12px; }
+.drop-zone .privacy { color: var(--accent); }
+button { padding: 7px 13px; border: 1px solid var(--border); border-radius: 7px; background: #fff; color: var(--text); cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button.primary { color: #fff; background: var(--accent); border-color: var(--accent); font-weight: 650; }
+button.danger { color: var(--danger); }
+button:disabled { opacity: .45; cursor: default; }
+.status { min-height: 18px; margin: 8px 2px 0; color: var(--muted); font-size: 12px; }
+.status.error { color: var(--danger); }
+.controls { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 13px; }
+.controls label, .preview-toolbar label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 11px; }
+.controls label.grow { flex: 1; min-width: 180px; }
+.controls input, .controls select, .preview-toolbar select, .top-actions select { min-height: 32px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: #fff; color: var(--text); }
+.controls input[type=number] { width: 86px; }
+.controls label.check, .preview-toolbar label.check { flex-direction: row; align-items: center; min-height: 32px; }
+.controls label.check input, .preview-toolbar label.check input { min-height: auto; }
+details { margin-top: 12px; }
+summary { color: var(--accent); cursor: pointer; font-size: 12px; font-weight: 600; }
+.advanced-controls { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.work-grid { display: grid; grid-template-columns: minmax(270px, 350px) 1fr; gap: 14px; align-items: start; }
+.image-panel { padding-bottom: 8px; }
+.image-list { list-style: none; margin: 0 -8px; padding: 0; max-height: 620px; overflow: auto; }
+.image-row { display: grid; grid-template-columns: 50px 1fr auto; gap: 9px; align-items: center; padding: 7px 9px; border-left: 3px solid transparent; cursor: pointer; }
+.image-row:hover { background: #f2f7f7; }
+.image-row.selected { background: var(--accent-soft); border-left-color: var(--accent); }
+.thumb { width: 48px; height: 48px; object-fit: contain; image-rendering: pixelated; border: 1px solid var(--border); border-radius: 5px; background: repeating-conic-gradient(#e8eeee 0 25%, #fff 0 50%) 0/12px 12px; }
+.image-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; }
+.image-meta, .image-format { color: var(--muted); font-size: 10px; }
+.image-size { text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; }
+.empty { padding: 16px 4px; color: var(--muted); font-size: 12px; }
+.override-controls { padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+.preview-toolbar { display: flex; gap: 12px; align-items: end; margin: 11px 0; }
+.preview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+figure { min-width: 0; margin: 0; }
+figcaption { margin-bottom: 5px; color: var(--muted); font-size: 11px; }
+.canvas-wrap { min-height: 180px; max-height: 470px; overflow: auto; border: 1px solid var(--border); border-radius: 7px; }
+.checker { background-color: #fff; background-image: linear-gradient(45deg,#e2e8e8 25%,transparent 25%),linear-gradient(-45deg,#e2e8e8 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e2e8e8 75%),linear-gradient(-45deg,transparent 75%,#e2e8e8 75%); background-size: 20px 20px; background-position: 0 0,0 10px,10px -10px,-10px 0; }
+canvas { display: block; image-rendering: pixelated; }
+.report-summary { margin: 0 0 10px; font-weight: 650; }
+.table-wrap { overflow: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th, td { padding: 7px 9px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; white-space: nowrap; }
+th { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .03em; }
+td.candidates { white-space: normal; color: var(--muted); font-size: 10px; }
+.note { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
+.button-row { display: flex; flex-wrap: wrap; gap: 9px; }
+@media (max-width: 850px) {
+  .topbar { align-items: flex-start; }
+  .work-grid, .preview-grid { grid-template-columns: 1fr; }
+  .image-list { max-height: 330px; }
+}
+@media (max-width: 560px) {
+  .topbar { flex-direction: column; gap: 8px; padding: 10px 12px; }
+  .workspace { padding: 10px 8px 50px; }
+  .drop-zone { align-items: stretch; flex-direction: column; }
+  .project-controls > label { width: calc(50% - 8px); }
+  .project-controls input, .project-controls select { width: 100% !important; }
+}

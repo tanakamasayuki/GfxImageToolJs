@@ -149,3 +149,45 @@ export function emitCSource(encoded, target = 'generic-c', options = {}) {
   ].join('\n');
   return { source, usage: targetUsage(target, encoded.format, name, encoded.width, encoded.height), issues: [] };
 }
+
+/**
+ * Emit several independently link-prunable image objects into one project header.
+ * @param {{encoded: import('../format/registry.js').EncodedImage, target?: string, name: string, storage?: string, align?: number, static?: boolean, comment?: string}[]} items
+ */
+export function emitCBundle(items) {
+  const symbols = new Map();
+  const fragments = [];
+  let usesTinyGfx = false;
+  for (const item of items) {
+    const name = sanitizeIdentifier(item.name);
+    const previous = symbols.get(name);
+    if (previous !== undefined) throw new EncodeConstraintError('SYMBOL_COLLISION', `C symbol collision: ${name} (${previous} and ${item.comment ?? item.name})`);
+    symbols.set(name, item.comment ?? item.name);
+    const target = item.target ?? 'generic-c';
+    usesTinyGfx ||= target === 'tinygfx';
+    const emitted = emitCSource(item.encoded, target, {
+      name,
+      storage: item.storage,
+      align: item.align,
+      static: item.static,
+      fragment: true,
+    });
+    fragments.push(`// ---- ${item.comment ?? item.name} ----\n${emitted.source.trimEnd()}`);
+  }
+  return {
+    source: [
+      '#pragma once',
+      '#include <stdint.h>',
+      ...(usesTinyGfx ? [
+        '',
+        '#if !defined(TINYGFX_IMAGE_SPEC_VERSION)',
+        '#error "Include <TinyGFX/Image.h> before this generated image header"',
+        '#endif',
+      ] : []),
+      '',
+      fragments.join('\n\n'),
+      '',
+    ].join('\n'),
+    issues: [],
+  };
+}

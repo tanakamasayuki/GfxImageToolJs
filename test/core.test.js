@@ -6,6 +6,7 @@ import {
   canEncode,
   cropImage,
   emitCSource,
+  emitCBundle,
   encodeImage,
   inspectImage,
   listTargets,
@@ -125,4 +126,21 @@ test('indexed target palette is emitted as RGB565 words', () => {
   assert.match(arduino.source, /const uint16_t two_palette\[2\]/);
   assert.match(arduino.source, /0x001F, 0xF800/);
   assert.match(arduino.usage, /drawIndexedBitmap/);
+});
+
+test('C bundle emits one preamble and rejects sanitized symbol collisions', () => {
+  const image = createImage(1, 1, [255, 0, 0, 255]);
+  const encoded = encodeImage(image, 'rgb565be');
+  const bundled = emitCBundle([
+    { encoded, name: 'icon-a', comment: 'a.png' },
+    { encoded, name: 'icon_b', comment: 'b.png' },
+  ]).source;
+  assert.equal((bundled.match(/#pragma once/g) ?? []).length, 1);
+  assert.match(bundled, /\/\/ ---- a\.png ----/);
+  assert.match(bundled, /icon_a_data/);
+  assert.match(bundled, /icon_b_data/);
+  assert.throws(() => emitCBundle([
+    { encoded, name: 'icon-a', comment: 'a.png' },
+    { encoded, name: 'icon_a', comment: 'b.png' },
+  ]), /C symbol collision/);
 });

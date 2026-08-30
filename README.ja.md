@@ -28,6 +28,17 @@ gfx-image-tool build ./images --check
 
 `--check`はファイルを書き換えず、欠落または差分があれば終了コード2を返します。
 
+## ブラウザ版
+
+複数画像を1projectとして扱うWeb workspaceもあります。画像はuploadせずブラウザ内だけで
+decode・変換します。共通設定と画像別override、原画／変換後preview、TinyGFX集合最適化、
+project `.h`、`.imagesconfig`、JSON reportのdownloadに対応しています。
+
+```sh
+npm run serve
+# http://localhost:4173/
+```
+
 現在の対応形式:
 
 - `bitmap1-msb` / `bitmap1-lsb` / `bitmap1-vertical`
@@ -139,4 +150,5 @@ npm run check
 npm run build
 npm run types
 npm run smoke:dist
+npm run build:site
 ```

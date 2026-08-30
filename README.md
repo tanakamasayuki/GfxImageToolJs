@@ -30,6 +30,17 @@ Current formats: `bitmap1-msb`, `bitmap1-lsb`, `bitmap1-vertical`, `mask1-msb`,
 Monochrome output supports Floyd-Steinberg and 2x2/4x4/8x8 Bayer dithering.
 Targets: `generic-c`, `adafruit-gfx`, `u8g2`, `lovyangfx`, `arduino-gfx`, `tft-espi`, and `tinygfx`.
 
+## Browser workspace
+
+The static web app handles multiple images as one project without uploading them. It provides
+project defaults and per-image overrides, original/converted previews, TinyGFX set optimization,
+and downloads for the bundled header, `.imagesconfig`, and JSON report.
+
+```sh
+npm run serve
+# http://localhost:4173/
+```
+
 ## TinyGFX optimization
 
 ```sh
@@ -66,4 +77,5 @@ npm run check
 npm run build
 npm run types
 npm run smoke:dist
+npm run build:site
 ```

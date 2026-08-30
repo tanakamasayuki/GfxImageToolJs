@@ -7,12 +7,13 @@ import { buildGlobMatcher, buildImagesIgnoreMatcher } from './ignore.js';
 import { grayscaleImage, transformImage } from '../transform/transform.js';
 import { encodeImage, rgb565 } from '../format/registry.js';
 import { reduceImageColors } from '../transform/quantize.js';
-import { emitCSource, sanitizeIdentifier } from '../target/csource.js';
+import { emitCBundle, emitCSource, sanitizeIdentifier } from '../target/csource.js';
 import { optimizeTinyImageSet } from '../optimize/tinygfx.js';
 
 /** @typedef {import('./config.js').ImagesConfig} ImagesConfig */
 /** @typedef {{relative: string, absolute: string}} ImageEntry */
-/** @typedef {{input: string, relative: string, output: string, symbol: string, format: string, source: string, dataBytes: number, paletteBytes: number}} BuiltImage */
+/** @typedef {{entry: ImageEntry, effective: ReturnType<typeof resolveImageConfig>, image: import('../model/image.js').GfxImage, symbol: string, output: string}} PreparedImage */
+/** @typedef {{input: string, relative: string, output: string, symbol: string, format: string, source: string, encoded: import('../format/registry.js').EncodedImage, dataBytes: number, paletteBytes: number}} BuiltImage */
 
 /** @param {string} path */
 async function optionalText(path) {
@@ -101,6 +102,7 @@ export async function buildImageProject(projectDir, options = {}) {
   const bundleOutput = resolve(outputRoot, config.general.outputFile);
   if (!inside(outputRoot, bundleOutput)) throw new Error(`output_file escapes output_dir: ${config.general.outputFile}`);
   const entries = await collectImageEntries(root, config);
+  /** @type {PreparedImage[]} */
   const prepared = [];
   const symbols = new Map();
   for (const entry of entries) {
@@ -172,25 +174,22 @@ export async function buildImageProject(projectDir, options = {}) {
       symbol,
       format: tinyChoice?.format ?? effective.color.format,
       source: emitted.source,
+      encoded,
       dataBytes: encoded.stats.dataBytes,
       paletteBytes: encoded.stats.paletteBytes,
     });
   }
-  const usesTinyGfx = prepared.some((item) => item.effective.general.target === 'tinygfx');
   const bundle = config.general.outputMode === 'bundle' ? {
     output: bundleOutput,
-    source: [
-      '#pragma once',
-      '#include <stdint.h>',
-      ...(usesTinyGfx ? [
-        '',
-        '#if !defined(TINYGFX_IMAGE_SPEC_VERSION)',
-        '#error "Include <TinyGFX/Image.h> before this generated image header"',
-        '#endif',
-      ] : []),
-      '',
-      ...images.flatMap((image) => [`// ---- ${image.relative} ----`, image.source.trimEnd(), '']),
-    ].join('\n'),
+    source: emitCBundle(images.map((image, index) => ({
+      encoded: image.encoded,
+      target: prepared[index].effective.general.target,
+      name: image.symbol,
+      storage: prepared[index].effective.csource.storage,
+      align: prepared[index].effective.csource.align,
+      static: prepared[index].effective.csource.static,
+      comment: image.relative,
+    }))).source,
   } : undefined;
   let index;
   if (config.general.outputMode === 'split' && config.general.indexHeader) {

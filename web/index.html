@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gfx Image Tool</title>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+  <link rel="stylesheet" href="./styles/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1 data-i18n="app.title">Gfx Image Tool</h1>
+      <p data-i18n="app.tagline">Build embedded image headers entirely in your browser</p>
+    </div>
+    <div class="top-actions">
+      <label><span data-i18n="language">Language</span><select id="language"></select></label>
+      <a href="https://github.com/tanakamasayuki/GfxImageToolJs" data-i18n="github">GitHub</a>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <section class="card drop-card">
+      <div id="drop-zone" class="drop-zone" tabindex="0">
+        <div>
+          <h2 data-i18n="drop.title">Drop, paste, or choose images</h2>
+          <p data-i18n="drop.note">PNG, JPEG, GIF, BMP, or WebP.</p>
+          <p class="privacy" data-i18n="app.privacy">Images stay in this browser.</p>
+        </div>
+        <button id="choose" class="primary" type="button" data-i18n="drop.choose">Choose images</button>
+        <input id="files" type="file" accept="image/*" multiple hidden>
+      </div>
+      <p id="status" class="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card">
+      <h2><span class="step">1</span><span data-i18n="project.title">Project settings</span></h2>
+      <div class="controls project-controls">
+        <label><span data-i18n="project.target">Target</span><select id="target"></select></label>
+        <label><span data-i18n="project.mode">Color mode</span>
+          <select id="mode">
+            <option value="auto">auto</option><option value="monochrome">monochrome</option>
+            <option value="grayscale">grayscale</option><option value="indexed">indexed</option>
+            <option value="true-color">true-color</option>
+          </select>
+        </label>
+        <label><span data-i18n="project.format">Format</span><select id="format"></select></label>
+        <label><span data-i18n="project.colors">Colors</span><input id="colors" type="number" min="2" max="256" value="16"></label>
+        <label><span data-i18n="project.dither">Dither</span>
+          <select id="dither"><option value="none">none</option><option value="floyd-steinberg">Floyd–Steinberg</option><option value="bayer2">Bayer 2×2</option><option value="bayer4">Bayer 4×4</option><option value="bayer8">Bayer 8×8</option></select>
+        </label>
+        <label><span data-i18n="project.threshold">1bpp threshold</span><input id="threshold" type="number" min="0" max="255" value="128"></label>
+        <label><span data-i18n="project.alpha">Alpha</span>
+          <select id="alpha-mode"><option value="color-key" data-i18n="value.colorKey">Color key</option><option value="none" data-i18n="value.none">None / matte</option></select>
+        </label>
+        <label><span data-i18n="project.alphaThreshold">Alpha threshold</span><input id="alpha-threshold" type="number" min="0" max="255" value="128"></label>
+      </div>
+      <details>
+        <summary data-i18n="project.advanced">Advanced settings</summary>
+        <div class="controls advanced-controls">
+          <label><span data-i18n="project.alphaColor">Transparent color</span><input id="alpha-color" type="text" value="auto" pattern="auto|#?[0-9a-fA-F]{6}"></label>
+          <label><span data-i18n="project.decoder">Decoder cost</span><input id="decoder-cost" type="number" min="0" value="400"></label>
+          <label><span data-i18n="project.prefer">1bpp preference</span><select id="prefer-bitmap"><option value="horizontal" data-i18n="value.horizontal">Horizontal</option><option value="vertical" data-i18n="value.vertical">Vertical</option></select></label>
+          <label class="check"><input id="aligned-vblit" type="checkbox"><span data-i18n="project.vblit">Aligned vertical blit</span></label>
+          <label><span data-i18n="project.prefix">Symbol prefix</span><input id="prefix" type="text" value="img_"></label>
+          <label><span data-i18n="project.output">Header name</span><input id="output-file" type="text" value="images.h"></label>
+        </div>
+      </details>
+    </section>
+
+    <div class="work-grid">
+      <section class="card image-panel">
+        <h2><span class="step">2</span><span data-i18n="images.title">Images</span></h2>
+        <div id="image-empty" class="empty" data-i18n="images.empty">Add images to start.</div>
+        <ul id="image-list" class="image-list"></ul>
+      </section>
+
+      <section class="card editor-panel">
+        <h2><span class="step">3</span><span data-i18n="editor.title">Selected image</span></h2>
+        <div id="editor-empty" class="empty" data-i18n="images.empty">Add images to start.</div>
+        <div id="editor" hidden>
+          <div class="controls override-controls">
+            <label class="grow"><span data-i18n="editor.symbol">Symbol override</span><input id="override-symbol" type="text" data-i18n-placeholder="editor.inherit"></label>
+            <label><span data-i18n="editor.mode">Mode override</span><select id="override-mode"><option value="" data-i18n="editor.inherit">Project default</option></select></label>
+            <label><span data-i18n="editor.format">Format override</span><select id="override-format"><option value="" data-i18n="editor.inherit">Project default</option></select></label>
+            <label><span data-i18n="editor.colors">Colors override</span><input id="override-colors" type="number" min="2" max="256" placeholder="—"></label>
+            <label><span data-i18n="editor.threshold">Threshold override</span><input id="override-threshold" type="number" min="0" max="255" placeholder="—"></label>
+            <label><span data-i18n="editor.dither">Dither override</span><select id="override-dither"><option value="" data-i18n="editor.inherit">Project default</option></select></label>
+            <button id="remove" class="danger" type="button" data-i18n="images.remove">Remove</button>
+          </div>
+          <div class="preview-toolbar">
+            <label><span data-i18n="preview.zoom">Zoom</span><select id="zoom"><option>1</option><option>2</option><option selected>4</option><option>8</option><option>12</option><option>16</option></select></label>
+            <label class="check"><input id="grid" type="checkbox" checked><span data-i18n="preview.grid">Pixel grid</span></label>
+          </div>
+          <div class="preview-grid">
+            <figure><figcaption data-i18n="preview.original">Original</figcaption><div class="canvas-wrap checker"><canvas id="original-preview"></canvas></div></figure>
+            <figure><figcaption data-i18n="preview.converted">Converted</figcaption><div class="canvas-wrap checker"><canvas id="converted-preview"></canvas></div></figure>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="card">
+      <h2><span class="step">4</span><span data-i18n="report.title">Optimization report</span></h2>
+      <p id="report-empty" class="empty" data-i18n="report.none">Results appear after images are added.</p>
+      <div id="report" hidden>
+        <p id="report-summary" class="report-summary"></p>
+        <div class="table-wrap"><table><thead><tr><th>Image</th><th data-i18n="report.individual">Individual minimum</th><th data-i18n="report.selected">Project selection</th><th>Δ</th><th>Candidates</th></tr></thead><tbody id="report-body"></tbody></table></div>
+      </div>
+    </section>
+
+    <section class="card export-card">
+      <h2><span class="step">5</span><span data-i18n="export.title">Export</span></h2>
+      <p class="note" data-i18n="export.note"></p>
+      <div class="button-row">
+        <button id="download-header" class="primary" disabled data-i18n="export.header">Download project .h</button>
+        <button id="download-selected" disabled data-i18n="export.selected">Download selected .h</button>
+        <button id="download-config" data-i18n="export.config">Download .imagesconfig</button>
+        <button id="import-config" data-i18n="export.import">Import .imagesconfig</button>
+        <input id="config-file" type="file" accept=".imagesconfig,text/plain" hidden>
+        <button id="download-report" disabled data-i18n="export.report">Download report.json</button>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -10,3 +10,5 @@
 - (JA) TinyGFXの5形式エンコード、固定デコーダコストによる集合最適化、CellImageヘッダー、安定した1bpp同点選択、alpha透過を追加。
 - (EN) Bundle directory projects into one header by default, with an optional split mode and symbol-collision checks.
 - (JA) directory projectの既定出力をheader 1本へまとめ、任意のsplit modeとsymbol衝突検査を追加。
+- (EN) Add a private, multi-image browser workspace with live previews, per-image overrides, TinyGFX set reports, configuration import/export, and Pages deployment.
+- (JA) 画像をuploadしない複数画像Web workspace、live preview、画像別override、TinyGFX集合report、設定import/export、Pages配信を追加。
