@@ -1,5 +1,6 @@
 // @ts-check
 import {
+  applyColorKey,
   browserProjectPath,
   browserProjectRoot,
   compositeAlpha,
@@ -41,7 +42,7 @@ const DEFAULTS = {
   preferBitmap: 'horizontal', alignedVblit: false, prefix: 'img_', outputFile: 'images.h',
 };
 
-/** @typedef {{symbol?: string, mode?: string, format?: string, colors?: number, threshold?: number, dither?: string}} Override */
+/** @typedef {{symbol?: string, mode?: string, format?: string, colors?: number, threshold?: number, dither?: string, alphaMode?: string, alphaThreshold?: number, alphaColor?: string, sourceKey?: string}} Override */
 /** @typedef {{id: number, name: string, image: import('../src/model/image.js').GfxImage, thumbnail: string, sourceBytes: Uint8Array, sourceType: string, override: Override}} WorkspaceImage */
 /** @type {typeof DEFAULTS} */
 let settings = loadSettings();
@@ -55,6 +56,7 @@ let importedOverrides = [];
 let computeError = '';
 /** @type {WeakMap<File, string>} */
 const virtualPaths = new WeakMap();
+let pickingSourceKey = false;
 /** @type {null | {header: string, images: {item: WorkspaceImage, prepared: import('../src/model/image.js').GfxImage, encoded: import('../src/format/registry.js').EncodedImage, format: string, symbol: string, bytes: number}[], optimization?: ReturnType<typeof optimizeTinyImageSet>, report: object}} */
 let computed = null;
 
@@ -171,7 +173,7 @@ function parseColor(value) {
 
 /** @param {string} format */
 function tinyAllowed(format) {
-  return format === 'auto' ? undefined : [format];
+  return !format || format === 'auto' ? undefined : [format];
 }
 
 /** @param {string} target */
@@ -183,8 +185,9 @@ function defaultFormat(target) {
 
 /** @param {WorkspaceImage} item */
 function prepare(item) {
-  const effective = { ...settings, ...item.override };
+  const effective = effectiveSettings(item);
   let image = item.image;
+  if (effective.sourceKey) image = applyColorKey(image, parseColor(effective.sourceKey));
   const alphaMode = effective.alphaMode === 'auto' ? (settings.target === 'tinygfx' ? 'color-key' : 'none') : effective.alphaMode;
   const keepsAlphaMask = settings.target !== 'tinygfx' && effective.format === 'mask1-msb';
   if (alphaMode === 'none' || (settings.target !== 'tinygfx' && !keepsAlphaMask)) image = compositeAlpha(image, [0, 0, 0]);
@@ -194,6 +197,14 @@ function prepare(item) {
     image = reduceImageColors(image, Number(effective.colors), { dither: /** @type {'none'|'floyd-steinberg'} */ (effective.dither) }).image;
   }
   return { image, effective };
+}
+
+/** @param {WorkspaceImage} item @returns {typeof DEFAULTS & Override} */
+function effectiveSettings(item) {
+  return /** @type {typeof DEFAULTS & Override} */ ({
+    ...settings,
+    ...Object.fromEntries(Object.entries(item.override).filter(([, value]) => value !== undefined && value !== '')),
+  });
 }
 
 function recompute() {
@@ -210,14 +221,13 @@ function recompute() {
     /** @type {{item: WorkspaceImage, prepared: import('../src/model/image.js').GfxImage, encoded: import('../src/format/registry.js').EncodedImage, format: string, symbol: string, bytes: number}[]} */
     let results;
     if (settings.target === 'tinygfx') {
-      const alphaColor = settings.alphaColor === 'auto' ? undefined : parseColor(settings.alphaColor);
       optimization = optimizeTinyImageSet(prepared.map(({ item, image, effective }) => ({
         key: String(item.id), image,
         monochrome: effective.mode === 'monochrome', threshold: Number(effective.threshold),
         invert: false,
         dither: /** @type {'none'|'floyd-steinberg'|'bayer2'|'bayer4'|'bayer8'} */ (effective.dither),
-        alphaThreshold: effective.alphaMode === 'color-key' || effective.alphaMode === 'auto' ? settings.alphaThreshold : undefined,
-        transparentColor: alphaColor ? rgb565(alphaColor[0], alphaColor[1], alphaColor[2]) : undefined,
+        alphaThreshold: effective.alphaMode === 'color-key' || effective.alphaMode === 'auto' ? Number(effective.alphaThreshold) : undefined,
+        transparentColor: effective.alphaColor !== 'auto' ? (() => { const color = parseColor(effective.alphaColor); return rgb565(color[0], color[1], color[2]); })() : undefined,
         allowedFormats: tinyAllowed(effective.format),
       })), { decoderCost: settings.decoderCost, preferBitmap: /** @type {'horizontal'|'vertical'} */ (settings.preferBitmap) });
       const choices = new Map(optimization.images.map((choice) => [choice.key, choice]));
@@ -234,7 +244,7 @@ function recompute() {
         const format = effective.format === 'auto' ? defaultFormat(settings.target) : effective.format;
         const encoded = encodeImage(image, format, {
           colors: Number(effective.colors), threshold: Number(effective.threshold),
-          alphaThreshold: settings.alphaThreshold,
+          alphaThreshold: Number(effective.alphaThreshold),
           dither: /** @type {'none'|'floyd-steinberg'|'bayer2'|'bayer4'|'bayer8'} */ (effective.dither),
         });
         return {
@@ -387,6 +397,10 @@ function applyImportedOverride(item) {
       colors: value.colors ? Number(value.colors) : item.override.colors,
       threshold: value.threshold ? Number(value.threshold) : item.override.threshold,
       dither: value.dither || item.override.dither,
+      alphaMode: value.alpha_mode || item.override.alphaMode,
+      alphaThreshold: value.alpha_threshold ? Number(value.alpha_threshold) : item.override.alphaThreshold,
+      alphaColor: value.alpha_color || item.override.alphaColor,
+      sourceKey: value.source_key || item.override.sourceKey,
     };
   }
 }
@@ -424,7 +438,7 @@ function renderEditor() {
   editorError.hidden = !computeError;
   editorError.textContent = computeError ? t('images.computeError', { message: computeError }) : '';
   const converted = computed?.images.find((entry) => entry.item.id === item.id);
-  const effective = { ...settings, ...item.override };
+  const effective = effectiveSettings(item);
   fillFormatOptions(select('override-format'), true);
   select('override-mode').options[0].textContent = `${t('editor.inherit')} — ${modeLabel(settings.mode)}`;
   select('override-format').options[0].textContent = `${t('editor.inherit')} — ${converted ? formatLabel(converted.format) : formatLabel(settings.format)}`;
@@ -438,30 +452,104 @@ function renderEditor() {
   input('override-threshold').value = item.override.threshold === undefined ? '' : String(item.override.threshold);
   input('override-threshold').placeholder = String(settings.threshold);
   select('override-dither').value = item.override.dither ?? '';
+  select('override-alpha-mode').value = item.override.alphaMode ?? '';
+  input('override-alpha-threshold').value = item.override.alphaThreshold === undefined ? '' : String(item.override.alphaThreshold);
+  input('override-alpha-threshold').placeholder = String(settings.alphaThreshold);
+  input('override-alpha-color').value = item.override.alphaColor ?? '';
+  input('override-alpha-color').placeholder = settings.alphaColor;
+  input('override-source-key-enabled').checked = !!item.override.sourceKey;
+  input('override-source-key').disabled = !item.override.sourceKey;
+  if (item.override.sourceKey) input('override-source-key').value = `#${item.override.sourceKey.replace(/^#/, '')}`;
+  const bitmapFormat = effective.format === 'bitmap1h' || effective.format === 'bitmap1v';
+  $('override-colors-label').hidden = effective.mode !== 'indexed';
+  $('override-threshold-label').hidden = effective.mode !== 'monochrome' && !bitmapFormat;
+  $('override-dither-label').hidden = effective.mode !== 'monochrome' && effective.mode !== 'indexed' && !bitmapFormat;
+  const effectiveAlphaMode = effective.alphaMode === 'auto' ? (settings.target === 'tinygfx' ? 'color-key' : 'none') : effective.alphaMode;
+  $('override-alpha-threshold-label').hidden = effectiveAlphaMode !== 'color-key';
+  $('override-alpha-color-label').hidden = settings.target !== 'tinygfx' || effectiveAlphaMode !== 'color-key';
+  $('source-key-label').hidden = settings.target !== 'tinygfx';
   const summary = $('effective-settings'); summary.textContent = ''; summary.dataset.label = t('effective.title');
-  const alphaMode = effective.alphaMode === 'auto' ? (settings.target === 'tinygfx' ? 'color-key' : 'none') : effective.alphaMode;
+  const alphaMode = effectiveAlphaMode;
   const values = [
     t('effective.symbol', { value: converted?.symbol ?? '—' }),
     t('effective.mode', { value: modeLabel(effective.mode) }),
     t('effective.format', { value: converted ? formatLabel(converted.format) : '—' }),
-    t('effective.colors', { value: effective.colors }),
-    t('effective.dither', { value: ditherLabel(effective.dither) }),
-    t('effective.threshold', { value: effective.threshold }),
+    ...(effective.mode === 'indexed' ? [
+      t('effective.colors', { value: effective.colors }),
+      t('effective.dither', { value: ditherLabel(effective.dither) }),
+    ] : []),
+    ...(effective.mode === 'monochrome' || bitmapFormat ? [
+      t('effective.threshold', { value: effective.threshold }),
+      t('effective.dither', { value: ditherLabel(effective.dither) }),
+    ] : []),
     t('effective.alpha', { value: t(`value.alpha.${alphaMode}`) }),
     t('effective.size', { value: converted?.bytes ?? '—' }),
   ];
   for (const value of values) { const span = document.createElement('span'); span.className = 'effective-value'; span.textContent = value; summary.append(span); }
   drawPreview(/** @type {HTMLCanvasElement} */ ($('original-preview')), item.image);
-  if (converted) drawPreview(/** @type {HTMLCanvasElement} */ ($('converted-preview')), decodeEncodedImage(converted.encoded, { target: settings.target }));
+  if (converted) {
+    const output = decodeEncodedImage(converted.encoded, { target: settings.target });
+    drawPreview(/** @type {HTMLCanvasElement} */ ($('converted-preview')), output);
+    renderResultSummary(item, converted, output, effective);
+  }
   else { const canvas = /** @type {HTMLCanvasElement} */ ($('converted-preview')); canvas.width = 1; canvas.height = 1; }
+  if (!converted) $('result-summary').textContent = computeError ? t('result.unavailable') : '';
   applyPreviewBackground();
+}
+
+/** @param {import('../src/model/image.js').GfxImage} image */
+function alphaCount(image) {
+  let transparent = 0; let partial = 0;
+  for (let at = 3; at < image.pixels.length; at += 4) {
+    if (image.pixels[at] === 0) transparent++;
+    else if (image.pixels[at] < 255) partial++;
+  }
+  return { transparent, partial, total: image.width * image.height };
+}
+
+/** @param {number} value */
+function rgb565Label(value) {
+  const r = Math.round(((value >> 11) & 31) * 255 / 31);
+  const g = Math.round(((value >> 5) & 63) * 255 / 63);
+  const b = Math.round((value & 31) * 255 / 31);
+  return `RGB565 0x${value.toString(16).toUpperCase().padStart(4, '0')} (#${[r, g, b].map((v) => v.toString(16).toUpperCase().padStart(2, '0')).join('')})`;
+}
+
+/** @param {WorkspaceImage} item @param {NonNullable<typeof computed>['images'][number]} result @param {import('../src/model/image.js').GfxImage} output @param {ReturnType<typeof effectiveSettings>} effective */
+function renderResultSummary(item, result, output, effective) {
+  const container = $('result-summary'); container.textContent = '';
+  const title = document.createElement('strong'); title.textContent = t('result.primary', { format: formatLabel(result.format), bytes: result.bytes });
+  container.append(title);
+  const sourceWithKey = effective.sourceKey ? applyColorKey(item.image, parseColor(effective.sourceKey)) : item.image;
+  const source = alphaCount(item.image); const keyed = alphaCount(sourceWithKey); const final = alphaCount(output);
+  const list = document.createElement('ul');
+  const rows = [
+    t('result.sourceAlpha', { transparent: source.transparent, partial: source.partial, total: source.total }),
+    ...(effective.sourceKey ? [t('result.sourceKey', { color: effective.sourceKey.toUpperCase(), count: Math.max(0, keyed.transparent - source.transparent) })] : []),
+    final.transparent
+      ? t('result.outputAlpha', { transparent: final.transparent, total: final.total })
+      : t('result.outputOpaque'),
+  ];
+  if (final.transparent) {
+    if (settings.target === 'tinygfx' && (result.encoded.format === 'bitmap1-msb' || result.encoded.format === 'bitmap1-vertical')) {
+      const palette = result.encoded.palette instanceof Uint16Array ? result.encoded.palette : undefined;
+      rows.push(t('result.bitmapTransparency', { foreground: rgb565Label(palette?.[1] ?? 0xffff) }));
+    } else if (result.encoded.transparent?.kind === 'color') {
+      rows.push(t('result.colorKey', { value: rgb565Label(result.encoded.transparent.value) }));
+    } else if (result.encoded.transparent?.kind === 'palette-index') {
+      const palette = result.encoded.palette instanceof Uint16Array ? result.encoded.palette : undefined;
+      rows.push(t('result.paletteKey', { index: result.encoded.transparent.value, value: rgb565Label(palette?.[result.encoded.transparent.value] ?? 0) }));
+    }
+  } else if (effective.alphaColor !== 'auto') rows.push(t('result.unusedKey'));
+  for (const row of rows) { const li = document.createElement('li'); li.textContent = row; list.append(li); }
+  container.append(list);
 }
 
 function applyPreviewBackground() {
   const background = select('preview-background').value;
   for (const id of ['original-wrap', 'converted-wrap']) {
     const wrapper = $(id);
-    wrapper.classList.remove('checker', 'preview-white', 'preview-black', 'preview-magenta', 'preview-green');
+    wrapper.classList.remove('checker', 'preview-white', 'preview-black', 'preview-magenta', 'preview-green', 'preview-blink');
     wrapper.classList.add(background === 'checker' ? 'checker' : `preview-${background}`);
   }
 }
@@ -640,7 +728,8 @@ function serializeConfig(imageRoot = '') {
     if (!entries.length) continue;
     const projectName = imageRoot ? `${imageRoot}${item.name.replace(/^images\//, '')}` : item.name;
     lines.push(`[image "${projectName.replaceAll('"', '_')}"]`);
-    for (const [key, value] of entries) lines.push(`${key} = ${value}`);
+    const configKeys = { alphaMode: 'alpha_mode', alphaThreshold: 'alpha_threshold', alphaColor: 'alpha_color', sourceKey: 'source_key' };
+    for (const [key, value] of entries) lines.push(`${configKeys[/** @type {keyof typeof configKeys} */ (key)] ?? key} = ${value}`);
     lines.push('');
   }
   return `${lines.join('\n')}\n`;
@@ -692,11 +781,70 @@ for (const id of ['override-symbol', 'override-mode', 'override-format', 'overri
     const item = selectedItem(); if (!item) return;
     const value = /** @type {HTMLInputElement|HTMLSelectElement} */ ($(id)).value;
     const key = id.replace('override-', '');
-    if (key === 'colors' || key === 'threshold') item.override[key] = value === '' ? undefined : Number(value);
-    else item.override[/** @type {'symbol'|'mode'|'format'|'dither'} */ (key)] = value || undefined;
+    if (!value) delete item.override[/** @type {keyof Override} */ (key)];
+    else if (key === 'colors' || key === 'threshold') item.override[key] = Number(value);
+    else item.override[/** @type {'symbol'|'mode'|'format'|'dither'} */ (key)] = value;
     recompute();
   });
 }
+
+for (const [id, key, numeric] of /** @type {const} */ ([
+  ['override-alpha-mode', 'alphaMode', false],
+  ['override-alpha-threshold', 'alphaThreshold', true],
+  ['override-alpha-color', 'alphaColor', false],
+])) {
+  $(id).addEventListener('input', () => {
+    const item = selectedItem(); if (!item) return;
+    const value = /** @type {HTMLInputElement|HTMLSelectElement} */ ($(id)).value.trim();
+    if (!value) delete item.override[key];
+    else if (numeric) item.override.alphaThreshold = Number(value);
+    else item.override[/** @type {'alphaMode'|'alphaColor'} */ (key)] = value;
+    recompute();
+  });
+}
+
+$('override-source-key-enabled').addEventListener('input', () => {
+  const item = selectedItem(); if (!item) return;
+  if (input('override-source-key-enabled').checked) item.override.sourceKey = input('override-source-key').value.slice(1).toUpperCase();
+  else delete item.override.sourceKey;
+  recompute();
+});
+$('override-source-key').addEventListener('input', () => {
+  const item = selectedItem(); if (!item || !input('override-source-key-enabled').checked) return;
+  item.override.sourceKey = input('override-source-key').value.slice(1).toUpperCase(); recompute();
+});
+
+/** @param {string} color */
+function setSelectedSourceKey(color) {
+  const item = selectedItem(); const match = /^#?([0-9a-fA-F]{6})$/.exec(color); if (!item || !match) return;
+  item.override.sourceKey = match[1].toUpperCase();
+  input('override-source-key-enabled').checked = true;
+  input('override-source-key').value = `#${match[1]}`;
+  pickingSourceKey = false;
+  $('original-preview').classList.remove('picking-color');
+  recompute();
+}
+
+$('pick-source-key').addEventListener('click', async () => {
+  const EyeDropperClass = /** @type {any} */ (window).EyeDropper;
+  if (EyeDropperClass) {
+    try { setSelectedSourceKey((await new EyeDropperClass().open()).sRGBHex); } catch { /* user cancelled */ }
+    return;
+  }
+  pickingSourceKey = true;
+  $('original-preview').classList.add('picking-color');
+  setStatus(t('status.pickSourceColor'));
+});
+
+$('original-preview').addEventListener('click', (event) => {
+  if (!pickingSourceKey) return;
+  const item = selectedItem(); const canvas = /** @type {HTMLCanvasElement} */ ($('original-preview')); if (!item) return;
+  const mouse = /** @type {MouseEvent} */ (event);
+  const x = Math.min(item.image.width - 1, Math.max(0, Math.floor(mouse.offsetX * item.image.width / canvas.clientWidth)));
+  const y = Math.min(item.image.height - 1, Math.max(0, Math.floor(mouse.offsetY * item.image.height / canvas.clientHeight)));
+  const at = (y * item.image.width + x) * 4;
+  setSelectedSourceKey(`#${[item.image.pixels[at], item.image.pixels[at + 1], item.image.pixels[at + 2]].map((value) => value.toString(16).padStart(2, '0')).join('')}`);
+});
 
 $('choose').addEventListener('click', () => input('files').click());
 input('files').addEventListener('change', () => { const files = input('files').files; if (files) void addFiles(files); input('files').value = ''; });

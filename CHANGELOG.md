@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-- (EN) Make browser project ZIPs reopenable and rebuildable with original files under `images/`, clarify conversion failures, enlarge UI text, and prevent TinyGFX auto optimization from erasing the second color of an opaque two-color image through bitmap selection.
-- (JA) Web project ZIPを`images/`の元画像込みで再読込・再生成可能にし、変換失敗表示と文字サイズを改善、TinyGFX自動最適化が不透明2色画像をbitmap化して片方の色を消す問題を修正。
+- (EN) Make browser project ZIPs reopenable and rebuildable with original files under `images/`, add per-image source-color eyedropper transparency and blinking preview backgrounds, clarify final results and conversion failures, enlarge UI text, and prevent TinyGFX auto optimization from erasing the second color of an opaque two-color image through bitmap selection.
+- (JA) Web project ZIPを`images/`の元画像込みで再読込・再生成可能にし、画像別の元色スポイト透過、背景点滅、最終結果と変換失敗の明示、文字サイズ改善を追加、TinyGFX自動最適化が不透明2色画像をbitmap化して片方の色を消す問題を修正。
 - (EN) Improve the browser workspace with human-readable settings and help, sorted replacement-safe images, effective per-image values, selectable preview backgrounds, confirmed removal, dropped configuration import, file previews, and a complete project ZIP.
 - (JA) Web workspaceへ人向け設定名とhelp、sort済み同名差替え、画像別実効値、preview背景選択、削除確認、設定drop import、ファイルpreview、project ZIPを追加。
 - (EN) Add paired English/Japanese documentation paths with beginner and advanced guides, a documentation index, a prominent browser-workspace link, and a release checklist.

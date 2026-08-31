@@ -99,6 +99,24 @@ export function compositeAlpha(image, matte = [0, 0, 0]) {
   return createImage(image.width, image.height, out, { source: image.source });
 }
 
+/**
+ * Make pixels whose source RGB exactly matches color fully transparent.
+ * Existing alpha on all other pixels is preserved.
+ * @param {GfxImage} image
+ * @param {ArrayLike<number>} color
+ */
+export function applyColorKey(image, color) {
+  image = validateImage(image);
+  const r = byte(color[0], 'colorKey.r');
+  const g = byte(color[1], 'colorKey.g');
+  const b = byte(color[2], 'colorKey.b');
+  const pixels = Uint8Array.from(image.pixels);
+  for (let at = 0; at < pixels.length; at += 4) {
+    if (pixels[at] === r && pixels[at + 1] === g && pixels[at + 2] === b) pixels[at + 3] = 0;
+  }
+  return createImage(image.width, image.height, pixels, { source: image.source });
+}
+
 /** @param {GfxImage} image */
 export function grayscaleImage(image) {
   image = validateImage(image);

@@ -60,7 +60,16 @@ Use `--target tinygfx`; its default format is `auto`. The candidates are `raw565
 For projects, set `[alpha] mode = color-key` and `threshold = 128` to preserve source alpha as a
 collision-free TinyGFX transparent color or palette index. Set `[optimize] decoder_cost = 400` and
 `prefer_bitmap = horizontal|vertical` to configure set optimization. Per-image sections may fix a
-format and override `alpha_mode` or `alpha_threshold`.
+format and override `alpha_mode`, `alpha_threshold`, or `alpha_color`. To make an opaque source RGB
+color transparent before encoding, set `source_key` on that image:
+
+```ini
+[image "icons/logo.png"]
+source_key = FF00FF
+```
+
+Matching is exact in decoded RGB888. The resulting alpha is then handled by the normal alpha mode;
+for TinyGFX, `auto` preserves it as the final encoded color key or bitmap background.
 
 The project default is `[alpha] mode = auto`, which preserves TinyGFX source transparency. Explicit
 `none` composites onto the matte and reports `ALPHA_COMPOSITED` when non-opaque pixels are present.

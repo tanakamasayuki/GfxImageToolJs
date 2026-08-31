@@ -80,14 +80,19 @@
         <div id="editor-empty" class="empty" data-i18n="images.empty">Add images to start.</div>
         <div id="editor" hidden>
           <p id="editor-error" class="inline-error" hidden></p>
+          <div id="result-summary" class="result-summary"></div>
           <div id="effective-settings" class="effective-settings"></div>
           <div class="controls override-controls">
             <label class="grow"><span data-i18n="editor.symbol">Symbol override</span><input id="override-symbol" type="text" data-i18n-placeholder="editor.inherit"></label>
             <label><span data-i18n="editor.mode">Mode override</span><select id="override-mode"><option value="" data-i18n="editor.inherit">Project default</option></select></label>
             <label><span data-i18n="editor.format">Format override</span><select id="override-format"><option value="" data-i18n="editor.inherit">Project default</option></select></label>
-            <label><span data-i18n="editor.colors">Colors override</span><input id="override-colors" type="number" min="2" max="256" placeholder="—"></label>
-            <label><span data-i18n="editor.threshold">Threshold override</span><input id="override-threshold" type="number" min="0" max="255" placeholder="—"></label>
-            <label><span data-i18n="editor.dither">Dither override</span><select id="override-dither"><option value="" data-i18n="editor.inherit">Project default</option></select></label>
+            <label id="override-colors-label"><span data-i18n="editor.colors">Colors override</span><input id="override-colors" type="number" min="2" max="256" placeholder="—"></label>
+            <label id="override-threshold-label"><span data-i18n="editor.threshold">Threshold override</span><input id="override-threshold" type="number" min="0" max="255" placeholder="—"></label>
+            <label id="override-dither-label"><span data-i18n="editor.dither">Dither override</span><select id="override-dither"><option value="" data-i18n="editor.inherit">Project default</option></select></label>
+            <label id="override-alpha-mode-label"><span data-i18n="editor.alphaMode">Transparency override</span><select id="override-alpha-mode"><option value="" data-i18n="editor.inherit">Project default</option><option value="auto" data-i18n="value.auto">Auto</option><option value="color-key" data-i18n="value.colorKey">Color key</option><option value="none" data-i18n="value.none">None / matte</option></select></label>
+            <label id="override-alpha-threshold-label"><span data-i18n="editor.alphaThreshold">Alpha threshold</span><input id="override-alpha-threshold" type="number" min="0" max="255" placeholder="—"></label>
+            <label id="override-alpha-color-label"><span data-i18n="editor.alphaColor">Encoded transparent value</span><input id="override-alpha-color" type="text" placeholder="auto" pattern="auto|#?[0-9a-fA-F]{6}"></label>
+            <label id="source-key-label" class="source-key"><span data-i18n="editor.sourceKey">Make a source color transparent</span><span class="source-key-row"><input id="override-source-key-enabled" type="checkbox"><input id="override-source-key" type="color" value="#ff00ff"><button id="pick-source-key" type="button" data-i18n="editor.eyedropper">Pick color</button></span></label>
             <button id="remove" class="danger" type="button" data-i18n="images.remove">Remove</button>
           </div>
           <div class="preview-toolbar">
@@ -99,6 +104,7 @@
               <option value="black" data-i18n="preview.black">Black</option>
               <option value="magenta" data-i18n="preview.magenta">Magenta</option>
               <option value="green" data-i18n="preview.green">Green</option>
+              <option value="blink" data-i18n="preview.blink">Blink colors</option>
             </select></label>
           </div>
           <div class="preview-grid">

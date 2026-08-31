@@ -4,7 +4,7 @@ import { dirname, extname, isAbsolute, join, relative, resolve } from 'node:path
 import { decodeImageFile } from './decode.js';
 import { IMAGES_CONFIG_TEMPLATE, parseImagesConfig, resolveImageConfig } from './config.js';
 import { buildGlobMatcher, buildImagesIgnoreMatcher } from './ignore.js';
-import { grayscaleImage, transformImage } from '../transform/transform.js';
+import { applyColorKey, grayscaleImage, transformImage } from '../transform/transform.js';
 import { encodeImage, rgb565 } from '../format/registry.js';
 import { reduceImageColors } from '../transform/quantize.js';
 import { emitCBundle, emitCSource, sanitizeIdentifier } from '../target/csource.js';
@@ -122,8 +122,8 @@ export async function buildImageProject(projectDir, options = {}) {
   for (const entry of entries) {
     const effective = resolveImageConfig(config, entry.relative);
     const original = await decodeImageFile(entry.absolute);
-    let image = original;
-    const hasNonOpaquePixels = original.pixels.some((value, index) => index % 4 === 3 && value !== 255);
+    let image = effective.alpha.sourceKey ? applyColorKey(original, effective.alpha.sourceKey) : original;
+    const hasNonOpaquePixels = image.pixels.some((value, index) => index % 4 === 3 && value !== 255);
     const configuredAlphaMode = effective.alpha.mode;
     if (effective.alpha.mode === 'auto') effective.alpha.mode = effective.general.target === 'tinygfx' ? 'color-key' : 'none';
     if (effective.alpha.mode === 'none') {

@@ -144,13 +144,20 @@ intentional.
 An alpha threshold divides partial transparency into transparent and opaque pixels. With the default
 128, pixels whose alpha is below 128 become transparent.
 
+If an opaque image uses a flat background color, select the image and enable `Make a source color
+transparent`. Use the eyedropper to pick that color. This source key is different from the encoded
+transparent value: the first creates transparent pixels; the second represents those pixels in the
+target format. The match is exact, so antialiased edge shades may need source artwork cleanup.
+
 ### 5. The converted preview
 
 The important preview is decoded from the generated asset. It includes RGB565 rounding, palette
 reduction, 1bpp conversion, and transparency decisions.
 
-Check transparent images over both light and dark backgrounds. A preview shown only over black can
-hide the mistake of replacing transparency with black pixels.
+Check transparent images over both light and dark backgrounds. `Blink colors` alternates two vivid
+backgrounds, making unchanged transparent areas easy to spot. A preview shown only over black can
+hide the mistake of replacing transparency with black pixels. The selected-image result box states
+the final format, bytes, transparent-pixel count, and encoded key actually used.
 
 ## Sensible starting points
 

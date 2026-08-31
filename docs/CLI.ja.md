@@ -102,7 +102,16 @@ mode = monochrome
 
 `format = auto`ではproject内の全画像を集合として最適化します。形式を固定する場合は
 `raw565`、`rle565`、`rlepal4`、`bitmap1h`、`bitmap1v`を指定します。
-画像別sectionでは`alpha_mode`と`alpha_threshold`も上書きできます。
+画像別sectionでは`alpha_mode`、`alpha_threshold`、`alpha_color`も上書きできます。不透明な元画像の
+特定RGB色を透明化してから変換するには、画像別に`source_key`を指定します。
+
+```ini
+[image "icons/logo.png"]
+source_key = FF00FF
+```
+
+decode後のRGB888と完全一致するpixelを透明にし、そのalphaを通常のalpha modeで処理します。
+TinyGFXの`auto`では、最終的な抜き色またはbitmap背景として保持します。
 `alpha.mode = auto`はTinyGFXで透過を`color-key`として保持します。`none`を明示した画像に
 非opaque pixelがある場合は`ALPHA_COMPOSITED` warningを出します。`preview.output_dir`を
 設定すると、`--preview`を毎回書かなくても通常buildと`--check`の両方へpreviewを含めます。

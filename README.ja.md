@@ -34,7 +34,8 @@ Gfx Image Toolは、実際の変換後画素をpreviewし、互換性のあるta
 Web版は自身が出力したproject ZIPを再度開けます。archive内の`generated/`と`previews/`は設定済みの
 出力directoryなので、次回の入力走査から除外されます。
 
-project共通設定と画像別overrideに対応し、TinyGFXでは複数画像を集合として最適化します。
+project共通設定と画像別overrideに対応し、TinyGFXでは複数画像を集合として最適化します。不透明な
+素材は画像別スポイトで元色を透明化でき、`.imagesconfig`の`source_key = RRGGBB`でも再現できます。
 
 ### CLI
 

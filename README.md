@@ -37,7 +37,9 @@ the target graphics library, compare original and converted previews, and downlo
 The web app can reopen its own project ZIP. Inside the archive, `generated/` and `previews/` are
 configured output directories and are excluded from subsequent input scans.
 
-Project defaults and per-image overrides are supported. TinyGFX images are optimized as a set.
+Project defaults and per-image overrides are supported. TinyGFX images are optimized as a set. For
+opaque artwork, the per-image eyedropper can turn an exact source color into transparency; the same
+operation is reproducible as `source_key = RRGGBB` in `.imagesconfig`.
 
 ### CLI
 

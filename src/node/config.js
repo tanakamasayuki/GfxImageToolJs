@@ -7,7 +7,7 @@ import { buildGlobMatcher } from './ignore.js';
  * @property {{outputDir: string, outputMode: 'bundle'|'split', outputFile: string, prefix: string, target: string, indexHeader: string}} general
  * @property {{patterns: string[]}} input
  * @property {{format: string, mode: 'auto'|'monochrome'|'grayscale'|'indexed'|'true-color', colors: number, dither: Dither, threshold: number, invert: boolean}} color
- * @property {{mode: 'auto'|'none'|'color-key', matte: [number, number, number], threshold: number, color: 'auto'|[number, number, number]}} alpha
+ * @property {{mode: 'auto'|'none'|'color-key', matte: [number, number, number], threshold: number, color: 'auto'|[number, number, number], sourceKey: null|[number, number, number]}} alpha
  * @property {{outputDir: string, layout: 'converted'|'comparison'|'both'}} preview
  * @property {{storage: string, align: number, static: boolean}} csource
  * @property {{decoderCost: number, preferBitmap: 'horizontal'|'vertical', alignedVblit: boolean}} optimize
@@ -124,6 +124,7 @@ export function parseImagesConfig(text) {
       matte: parseRgb(alpha.matte),
       threshold: integer(alpha.threshold, 128, 0, 255, 'alpha.threshold'),
       color: /** @type {'auto'|[number, number, number]} */ (alphaColor),
+      sourceKey: alpha.source_key ? parseRgb(alpha.source_key) : null,
     },
     preview: {
       outputDir: preview.output_dir || '',
@@ -155,6 +156,7 @@ export function resolveImageConfig(config, relativePath) {
       ...config.alpha,
       matte: /** @type {[number, number, number]} */ ([...config.alpha.matte]),
       color: config.alpha.color === 'auto' ? 'auto' : /** @type {[number, number, number]} */ ([...config.alpha.color]),
+      sourceKey: config.alpha.sourceKey ? /** @type {[number, number, number]} */ ([...config.alpha.sourceKey]) : null,
     },
     preview: { ...config.preview },
     csource: { ...config.csource },
@@ -184,6 +186,7 @@ export function resolveImageConfig(config, relativePath) {
     }
     if (value.alpha_threshold !== undefined) effective.alpha.threshold = integer(value.alpha_threshold, 128, 0, 255, 'image.alpha_threshold');
     if (value.alpha_color !== undefined) effective.alpha.color = value.alpha_color === 'auto' ? 'auto' : parseRgb(value.alpha_color);
+    if (value.source_key !== undefined) effective.alpha.sourceKey = value.source_key ? parseRgb(value.source_key) : null;
     if (value.matte !== undefined) effective.alpha.matte = parseRgb(value.matte);
     if (value.storage !== undefined) effective.csource.storage = value.storage;
     if (value.align !== undefined) effective.csource.align = integer(value.align, 4, 1, 4096, 'image.align');
@@ -225,6 +228,7 @@ mode = auto
 matte = 000000
 threshold = 128
 color = auto
+# source_key = FF00FF
 
 [preview]
 # output_dir = previews

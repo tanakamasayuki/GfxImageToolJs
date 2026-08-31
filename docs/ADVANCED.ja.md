@@ -136,6 +136,10 @@ alpha threshold未満の画素を1つの透明値へ置き換えます。`color 
 color keyは二値透過なので、半透明の縁は透明か不透明のどちらかになります。素材側で縁を対象背景へ
 premultiplyしたような画像は、別背景でhaloが出ることがあります。実機の代表的な背景色でも確認します。
 
+`source_key = RRGGBB`は前処理であり、`[alpha] color`とは別です。decodeした元画像でRGBが完全一致する
+pixelをalpha 0へ変えます。`[alpha] color`は、既に透明になったpixelを表す変換後RGB565値を選びます。
+画像別sectionでは両方を指定できます。
+
 ### `none`
 
 alphaをmatteへ合成します。非opaque pixelを含む画像で明示すると`ALPHA_COMPOSITED` warningを

@@ -1,7 +1,7 @@
 // @ts-check
 
 export { createImage, validateImage, cloneImage, getPixel, setPixel } from './model/image.js';
-export { transformImage, cropImage, resizeImage, compositeAlpha, grayscaleImage } from './transform/transform.js';
+export { transformImage, cropImage, resizeImage, compositeAlpha, applyColorKey, grayscaleImage } from './transform/transform.js';
 export { quantizeImage, reduceImageColors } from './transform/quantize.js';
 export { encodeImage, canEncode, listFormats, rgb565 } from './format/registry.js';
 export {

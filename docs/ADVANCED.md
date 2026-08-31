@@ -139,6 +139,10 @@ A color key is binary transparency. Partially transparent edge pixels become tra
 and artwork authored against one background may show a halo on another. Test representative device
 backgrounds.
 
+`source_key = RRGGBB` is a preprocessing operation and must not be confused with `[alpha] color`.
+It changes exact matching decoded source pixels to alpha zero. `[alpha] color` chooses the encoded
+RGB565 value used to represent already-transparent pixels. Per-image sections may use both.
+
 ### `none`
 
 Alpha is composited onto the matte. Explicit use on non-opaque source pixels records an

@@ -24,12 +24,17 @@ test('web workspace exposes project inputs and core-only module entry', async ()
   assert.match(html, /id="download-zip"/);
   assert.match(html, /id="effective-settings"/);
   assert.match(html, /id="preview-background"/);
+  assert.match(html, /id="result-summary"/);
+  assert.match(html, /id="pick-source-key"/);
+  assert.match(html, /value="blink"/);
   assert.match(html, /id="remove-dialog"/);
   assert.match(app, /target: 'generic-c', mode: 'auto', format: 'rgb565be'/);
   assert.match(app, /existing\.image = image/);
   assert.match(app, /existing\.sourceBytes = sourceBytes/);
   assert.match(app, /entries\.push\(\{ name: zipSourceName\(item\), data: item\.sourceBytes \}\)/);
   assert.match(app, /readStoredZip/);
+  assert.match(app, /delete item\.override/);
+  assert.match(app, /sourceKey: 'source_key'/);
   assert.match(app, /file\.name\.endsWith\('\.imagesconfig'\)/);
   assert.match(bridge, /src\/index\.js/);
   assert.match(bridge, /src\/browser\/index\.js/);

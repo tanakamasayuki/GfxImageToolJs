@@ -41,6 +41,7 @@ color = 123456
 format = indexed8
 colors = 4
 alpha_threshold = 64
+source_key = FF00FF
 
 [image "**/photo.png"]
 threshold = 99
@@ -55,7 +56,17 @@ threshold = 99
   assert.equal(icon.color.format, 'indexed8');
   assert.equal(icon.color.colors, 4);
   assert.equal(icon.alpha.threshold, 64);
+  assert.deepEqual(icon.alpha.sourceKey, [255, 0, 255]);
   assert.equal(resolveImageConfig(config, 'photo.png').color.threshold, 99);
+});
+
+test('project source_key creates TinyGFX transparency before encoding', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'gfx-image-source-key-'));
+  await png(join(root, 'keyed.png'), ['#ff00ff', '#ffffff']);
+  await writeFile(join(root, '.imagesconfig'), '[general]\ntarget = tinygfx\n[image "keyed.png"]\nsource_key = FF00FF\n');
+  const result = await buildImageProject(root);
+  assert.ok(result.images[0].encoded.transparent || /^bitmap1/.test(result.images[0].format));
+  assert.equal(result.images[0].prepared.pixels[3], 0);
 });
 
 test('project alpha auto preserves TinyGFX transparency and explicit none reports compositing', async () => {

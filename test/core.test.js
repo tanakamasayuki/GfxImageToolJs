@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  applyColorKey,
   createImage,
   compareImages,
   decodeEncodedImage,
@@ -50,6 +51,13 @@ test('vertical 1bpp packs top pixel into LSB', () => {
 test('mask uses alpha threshold independently from luminance', () => {
   const image = rgba([0, 0, 0, 127], [0, 0, 0, 128]);
   assert.deepEqual([...encodeImage(image, 'mask1-msb').data], [0x40]);
+});
+
+test('source color key makes exact RGB matches transparent', () => {
+  const image = rgba([255, 0, 255, 255], [255, 0, 254, 255], [255, 0, 255, 128]);
+  assert.deepEqual([...applyColorKey(image, [255, 0, 255]).pixels], [
+    255, 0, 255, 0, 255, 0, 254, 255, 255, 0, 255, 0,
+  ]);
 });
 
 test('canEncode reports stable issues instead of throwing', () => {

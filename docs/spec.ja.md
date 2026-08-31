@@ -487,12 +487,14 @@ dither = bayer4
 mode = indexed
 colors = 16
 alpha_mode = color-key
+source_key = FF00FF
 ```
 
 - 不明section / keyは初期releaseではforward compatibilityのため読み飛ばす。
 - 値不正は設定キーを示してエラーにする。既定値への黙った置換はしない。
 - CLI option は設定を上書きし、API option は CLI と同じ構造を使う。
-- 画像別 override は glob section（例: `[image "icons/*.png"]`）で指定可能にする。
+- 画像別 override は glob section（例: `[image "icons/*.png"]`）で指定可能にする。`source_key`は
+  decode後の元画像RGBと完全一致するpixelをalpha 0へ変換し、`alpha_color`とは別に扱う。
 - glob section には共通設定との差分だけを記述できる。
 - Web が出力する設定と CLI が読む設定は同一 schema とし、相互に再現できる。
 
@@ -590,8 +592,9 @@ project共通設定は全項目を常時表示する。項目数が少なく、�
 
 ### 12.3 比較表示と出力
 
-プレビューには最近傍拡大、pixel grid、alpha checker、白・黒・マゼンタ・緑の背景切替、
-原画と変換後の並列表示を持たせる。
+プレビューには最近傍拡大、pixel grid、alpha checker、白・黒・マゼンタ・緑の背景切替、背景2色の
+点滅、原画と変換後の並列表示を持たせる。元画像色の透明化はnative EyeDropperまたは原画preview上の
+pixel clickで指定できる。最終結果としてformat、data byte、元／変換後の透明pixel数、実際の抜き色を表示する。
 候補ごとにdata / paletteとdecoder costを含む容量を表示する。設定変更はcore APIを再実行するだけとし、
 UI専用変換を作らない。実寸表示、任意背景色、MSE / PSNRは将来拡張とする。
 
