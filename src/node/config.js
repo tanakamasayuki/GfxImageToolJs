@@ -100,7 +100,7 @@ export function parseImagesConfig(text) {
   if (previewLayout !== 'converted' && previewLayout !== 'comparison' && previewLayout !== 'both') throw new Error(`Unknown preview layout: ${previewLayout}`);
   return {
     general: {
-      outputDir: general.output_dir || 'generated',
+      outputDir: general.output_dir || '..',
       outputMode: /** @type {'bundle'|'split'} */ (outputMode),
       outputFile: general.output_file || 'images.h',
       prefix: general.prefix || '',

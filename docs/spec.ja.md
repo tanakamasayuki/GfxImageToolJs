@@ -421,9 +421,10 @@ fast path の双方を別欄で表示する。当初見積もりの 24 B は使�
 本ツールだけで入力画像から利用可能な `.h` までを生成する。他ツールへの委譲、
 asset bundle への取り込み、元画像ファイルの埋め込みは行わない。
 
-入力 path がファイルなら 1 枚を、directory ならその配下を画像プロジェクトとして
-再帰処理する。directory 名を `images` 等に限定しない。プロジェクト root に
-`.imagesconfig` と `.imagesignore` を置ける。
+入力 path がファイルなら 1 枚を処理する。新規projectはfirmware project直下の`images/`を素材rootとし、
+そこへ`.imagesconfig`、`.imagesignore`、元画像を置く。firmware projectをCLIへ渡すと
+`images/`を自動検出し、`images/`自体を渡しても同じ結果にする。root直下の`.imagesconfig`は
+project設定として読み込まない。
 
 単一画像入力は自己完結した `.h` 1 本を生成する。directory入力は全画像をまとめた
 **project header 1 本**を既定とする。利用側のincludeとWebからのdownloadが1ファイルで
@@ -434,16 +435,18 @@ asset bundle への取り込み、元画像ファイルの埋め込みは行わ�
 構造を出力directoryへ保ち、任意のindex headerを生成できる。生成先・設定ファイル自身は
 入力から除外する。
 
-header出力先とpreview出力先には生成manifestを置く。通常buildは前回manifestに記録され、
+headerの追跡cacheは`images/.gfx-image-tool/`、previewの追跡manifestはpreview出力先へ置く。通常buildは前回cacheに記録され、
 今回の期待集合から外れたファイルだけを削除する。`--check`は削除せずstaleとして終了2を返す。
-manifestに記録されていないファイルは削除しない。数字またはunderscoreで始まる入力symbolは
+cacheに記録されていないファイルは削除しない。`.gfx-image-tool/`は入力走査とgit管理から除外し、
+削除しても同じheaderを再生成できる。cache欠落だけでは`--check`を失敗させず、stale検出を省略した
+warningを出す。数字またはunderscoreで始まる入力symbolは
 `img_`系prefixを付け、global namespaceの予約識別子を生成しない。
 
 設定例:
 
 ```ini
 [general]
-output_dir = generated
+output_dir = ..
 output_mode = bundle
 output_file = images.h
 prefix = images
@@ -527,11 +530,12 @@ gfx-image-tool --version
 -h, --help
 ```
 
-- path が画像なら単一変換、directory ならその配下の対象画像を再帰処理する。
+- path が画像なら単一変換、directoryならそのdirectory自身が`images/`か、配下の`images/`を解決して対象画像を再帰処理する。
 - 単一画像の既定出力は同じ directory の `<stem>.h`、directory の既定出力は
-  `.imagesconfig` の `output_dir`（未指定なら `generated/`）とする。
+  新規`images/` projectでは親の`images.h`とする。`output_dir`と`output_file`で変更できる。
 - `inspect` は書き込まず、実効設定、入力一覧、画像情報、候補形式とサイズを表示する。
-- `init` はコメント付き `.imagesconfig` を作る。既存ファイルは変更しない。
+- `init <project>`は`<project>/images/.imagesconfig`と、cacheを除外する`.gitignore`を作る。
+  既存ファイルは変更しない。
 - `--json` 時は stdout を JSON 専用とし、人間向け進捗は stderr へ出す。
 
 終了コード:
@@ -559,7 +563,7 @@ UI framework なしの静的アプリを GitHub Pages で配信する。単一�
 4. 画像を選び、共通設定を画像単位で上書きしてプレビューする。
 5. TinyGFX では全画像を集合最適化し、画像別最小との差を確認する。
 6. 元画像を含むproject ZIP、project `.h`、`.imagesconfig`をproject file欄からdownloadする。選択画像の
-   `.h`と変換後／左右比較PNGは、選択画像panelからdownloadする。report JSONはZIPに含め、単独buttonは置かない。
+   `.h`と変換後／左右比較PNGは、選択画像panelからdownloadする。report JSONとpreview PNGは既定ZIPへ含めない。
 7. 保存したproject ZIPをdropして、設定と`images/`内の元画像をworkspaceへ復元できる。
 
 1 枚だけ投入した場合も同じ画面を簡易モードとして使える。別の「お試し専用画面」は
@@ -579,13 +583,14 @@ project 共通に向く項目:
 
 画像ごとに調整する項目:
 
-- symbol
 - mode: `auto` / `monochrome` / `grayscale` / `indexed` / `true-color`
 - 強制 format、最大色数、固定 palette
 - threshold、dither、mode、format
 
 `mode` は利用者向けの入口で、選択した target に不可能な形式を隠す。実際の format は
 advanced 欄で確認・固定できる。`auto` は画質制約を満たす候補だけから選ぶ。
+選択画像panelは実効mode/formatで意味のないoverride項目をdisabled表示せず、行ごと非表示にする。
+symbolは最終結果として表示するが、Webの画像別設定項目には置かない。
 
 project共通設定は全項目を常時表示する。項目数が少なく、畳むことで設定の存在を見落とす方が問題に
 なるため、decoder cost、1bpp preference、`aligned-vblit`、symbol prefix、header名も同じcard内に置く。
@@ -595,12 +600,14 @@ project共通設定は全項目を常時表示する。項目数が少なく、�
 プレビューには最近傍拡大、pixel grid、alpha checker、白・黒・マゼンタ・緑の背景切替、背景2色の
 点滅、原画と変換後の並列表示を持たせる。元画像色の透明化はnative EyeDropperまたは原画preview上の
 pixel clickで指定できる。最終結果としてformat、data byte、元／変換後の透明pixel数、実際の抜き色を表示する。
+スポイトは原画preview内のpixelだけを取得する。手入力色が元画像に存在しなければ毎回原画から再計算した
+結果を使って透明化を0 pixelに戻し、「該当色なし」を明示する。以前の抜き色結果を残してはならない。
 候補ごとにdata / paletteとdecoder costを含む容量を表示する。設定変更はcore APIを再実行するだけとし、
 UI専用変換を作らない。実寸表示、任意背景色、MSE / PSNRは将来拡張とする。
 
-設定exportはproject defaultとoverrideを`.imagesconfig`へ書く。再importすると同じ選択状態と
-出力byte列を再現する。project ZIPには`images/`配下の元画像、bundle header、設定、report、
-変換後／比較PNGを収録する。WebはこのZIPを再importでき、`images/`だけを入力として復元する。
+設定exportはproject defaultとoverrideを`images/.imagesconfig`へ書く。再importすると同じ選択状態と
+出力byte列を再現する。project ZIPはrootにbundle header、`images/`に元画像、設定、`.gitignore`を収録する。
+report、preview、`.gfx-image-tool/`は含めない。WebはこのZIPを再importでき、`images/`だけを入力として復元する。
 
 i18n、ロケール検査、サイト生成、Pages workflow は `LGFXFontToolJs` と同じ構造を使う。
 初期ロケールは `en` / `ja`。中国語追加は辞書追加だけで済む構造にする。
@@ -802,7 +809,7 @@ Phase 1〜4は初期releaseへ実装済み。Phase 5は需要に応じて検討�
 
 ### Phase 2 — フォルダー運用と主要 GFX
 
-- Node decoder、任意 directory、`.imagesconfig`、`.imagesignore`、bundle / split `.h`
+- Node decoder、canonical `images/` project、`.imagesconfig`、`.imagesignore`、bundle / split `.h`
 - quantize / indexed8
 - Adafruit_GFX、U8g2、LovyanGFX、Arduino_GFX、TFT_eSPI presets
 - `init`、`--check`、JSON report、CI/package/release scripts
@@ -850,7 +857,7 @@ Phase 1〜4は初期releaseへ実装済み。Phase 5は需要に応じて検討�
 
 1. PNG / JPEG / GIF / BMP を Node CLI で読み、必須の汎用形式へ変換できる。
 2. generic-c と主要 5 GFX targetについて、bundleと画像別splitのヘッダーが生成できる。
-3. 単一画像と任意 directory の build / inspect / init / check が動く。
+3. 単一画像とcanonical `images/` projectのbuild / inspect / init / checkが動く。
 4. Web で複数画像、共通設定＋画像別上書き、設定再 import、project `.h` download が動く。
 5. TinyGFX 5 候補、固定 decoder cost、集合最適化が動き、TinyGFX host test の描画結果と
    pixel exact で一致する。`img2h.py` との一致は符号化 byte 列の補助検査とする。

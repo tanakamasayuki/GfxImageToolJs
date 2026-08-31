@@ -16,6 +16,6 @@
 | releaseごとの変更を確認したい | [CHANGELOG](../CHANGELOG.md) |
 
 最短経路は、Web版で画像と出力先libraryを選び、変換後previewを確認してproject ZIPをdownloadすることです。
-継続的に生成する場合は、Webから`.imagesconfig`を保存し、CLIのdirectory buildと`--check`へ移行します。
+継続的に生成する場合はZIPをfirmware projectへ展開し、CLIでproject rootをbuild／`--check`します。
 
 [リポジトリTOPへ戻る](../README.ja.md)

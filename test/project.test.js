@@ -121,14 +121,13 @@ test('project input scan excludes configured generated and preview directories',
   assert.deepEqual(entries.map((entry) => entry.relative), ['images/source.png']);
 });
 
-test('sketch resolution prefers legacy direct config, then canonical images config', async () => {
+test('sketch resolution accepts only the canonical images directory', async () => {
   const root = await mkdtemp(join(tmpdir(), 'gfx-image-resolve-'));
   await mkdir(join(root, 'images'));
-  await writeFile(join(root, 'images', '.imagesconfig'), '[general]\noutput_dir = ..\n');
   assert.equal(await resolveImageProjectDirectory(root), join(root, 'images'));
-  await writeFile(join(root, '.imagesconfig'), '[general]\noutput_dir = generated\n');
-  assert.equal(await resolveImageProjectDirectory(root), root);
   assert.equal(await resolveImageProjectDirectory(join(root, 'images')), join(root, 'images'));
+  const missing = await mkdtemp(join(tmpdir(), 'gfx-image-resolve-missing-'));
+  await assert.rejects(resolveImageProjectDirectory(missing), /Image project directory not found/);
 });
 
 test('project writes one header per image and check is read-only', async () => {
@@ -173,7 +172,7 @@ test('split project manifest detects and removes headers orphaned by deleted sou
   const root = await mkdtemp(join(tmpdir(), 'gfx-image-stale-split-'));
   await png(join(root, 'keep.png'), ['#ff0000']);
   await png(join(root, 'gone.png'), ['#00ff00']);
-  await writeFile(join(root, '.imagesconfig'), '[general]\noutput_mode = split\n');
+  await writeFile(join(root, '.imagesconfig'), '[general]\noutput_dir = generated\noutput_mode = split\n');
   await writeImageProject(root);
   const staleHeader = join(root, 'generated', 'gone.h');
   await access(staleHeader);
@@ -205,6 +204,7 @@ test('init never overwrites an existing config', async () => {
   assert.equal(first.status, 'created');
   assert.equal(first.path, join(root, 'images', '.imagesconfig'));
   assert.match(original, /output_dir = \.\./);
+  assert.equal(await readFile(join(root, 'images', '.gitignore'), 'utf8'), '.gfx-image-tool/\n');
   assert.equal(second.status, 'exists');
   assert.equal(await readFile(first.path, 'utf8'), original);
 });
@@ -260,6 +260,7 @@ test('TinyGFX project preserves alpha through CellImage transparency', async () 
   await writeFile(join(root, '.imagesconfig'), `
 [general]
 target = tinygfx
+output_dir = generated
 
 [color]
 format = raw565
@@ -286,6 +287,7 @@ test('indexed mode reduces TinyGFX input before a forced palette encoding', asyn
   await writeFile(join(root, '.imagesconfig'), `
 [general]
 target = tinygfx
+output_dir = generated
 
 [color]
 format = rlepal4

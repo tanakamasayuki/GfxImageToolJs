@@ -448,8 +448,6 @@ function renderEditor() {
   select('override-mode').options[0].textContent = `${t('editor.inherit')} — ${modeLabel(settings.mode)}`;
   select('override-format').options[0].textContent = `${t('editor.inherit')} — ${converted ? formatLabel(converted.format) : formatLabel(settings.format)}`;
   select('override-dither').options[0].textContent = `${t('editor.inherit')} — ${ditherLabel(settings.dither)}`;
-  input('override-symbol').value = item.override.symbol ?? '';
-  input('override-symbol').placeholder = converted?.symbol ?? t('editor.inherit');
   select('override-mode').value = item.override.mode ?? '';
   select('override-format').value = item.override.format ?? '';
   input('override-colors').value = item.override.colors === undefined ? '' : String(item.override.colors);
@@ -463,16 +461,21 @@ function renderEditor() {
   input('override-alpha-color').value = item.override.alphaColor ?? '';
   input('override-alpha-color').placeholder = settings.alphaColor;
   input('override-source-key-enabled').checked = !!item.override.sourceKey;
-  input('override-source-key').disabled = !item.override.sourceKey;
+  input('override-source-key').hidden = !item.override.sourceKey;
   if (item.override.sourceKey) input('override-source-key').value = `#${item.override.sourceKey.replace(/^#/, '')}`;
   const bitmapFormat = effective.format === 'bitmap1h' || effective.format === 'bitmap1v';
   $('override-colors-label').hidden = effective.mode !== 'indexed';
   $('override-threshold-label').hidden = effective.mode !== 'monochrome' && !bitmapFormat;
   $('override-dither-label').hidden = effective.mode !== 'monochrome' && effective.mode !== 'indexed' && !bitmapFormat;
   const effectiveAlphaMode = effective.alphaMode === 'auto' ? (settings.target === 'tinygfx' ? 'color-key' : 'none') : effective.alphaMode;
-  $('override-alpha-threshold-label').hidden = effectiveAlphaMode !== 'color-key';
-  $('override-alpha-color-label').hidden = settings.target !== 'tinygfx' || effectiveAlphaMode !== 'color-key';
-  $('source-key-label').hidden = settings.target !== 'tinygfx';
+  const sourceWithKey = effective.sourceKey ? applyColorKey(item.image, parseColor(effective.sourceKey)) : item.image;
+  const keyedAlpha = alphaCount(sourceWithKey);
+  const hasTransparentSource = keyedAlpha.transparent > 0 || keyedAlpha.partial > 0;
+  const supportsTransparency = settings.target === 'tinygfx' || effective.format === 'mask1-msb';
+  $('override-alpha-mode-label').hidden = !supportsTransparency;
+  $('override-alpha-threshold-label').hidden = !supportsTransparency || effectiveAlphaMode !== 'color-key';
+  $('override-alpha-color-label').hidden = settings.target !== 'tinygfx' || effectiveAlphaMode !== 'color-key' || !hasTransparentSource;
+  $('source-key-label').hidden = !supportsTransparency;
   const summary = $('effective-settings'); summary.textContent = ''; summary.dataset.label = t('effective.title');
   const alphaMode = effectiveAlphaMode;
   const values = [
@@ -530,7 +533,9 @@ function renderResultSummary(item, result, output, effective) {
   const list = document.createElement('ul');
   const rows = [
     t('result.sourceAlpha', { transparent: source.transparent, partial: source.partial, total: source.total }),
-    ...(effective.sourceKey ? [t('result.sourceKey', { color: effective.sourceKey.toUpperCase(), count: Math.max(0, keyed.transparent - source.transparent) })] : []),
+    ...(effective.sourceKey ? [Math.max(0, keyed.transparent - source.transparent) > 0
+      ? t('result.sourceKey', { color: effective.sourceKey.toUpperCase(), count: Math.max(0, keyed.transparent - source.transparent) })
+      : t('result.sourceKeyNoMatch', { color: effective.sourceKey.toUpperCase() })] : []),
     final.transparent
       ? t('result.outputAlpha', { transparent: final.transparent, total: final.total })
       : t('result.outputOpaque'),
@@ -619,12 +624,11 @@ function downloadPng(image, name) {
 
 function projectTextFiles() {
   const outputFile = settings.outputFile;
-  const manifest = `${JSON.stringify({ version: 1, kind: 'headers', files: [outputFile] }, null, 2)}\n`;
   return new Map([
     [outputFile, computed?.header ?? ''],
     ['images/README.txt', projectReadme()],
     ['images/.imagesconfig', serializeConfig()],
-    ['images/.gfx-image-tool/headers.json', manifest],
+    ['images/.gitignore', '.gfx-image-tool/\n'],
   ]);
 }
 
@@ -639,6 +643,9 @@ project rootから再生成・検査できます:
 
   gfx-image-tool build .
   gfx-image-tool build . --check
+
+.gfx-image-tool/ is disposable cache and is excluded by images/.gitignore.
+.gfx-image-tool/は再生成可能なcacheで、images/.gitignoreによりgit管理されません。
 `;
 }
 
@@ -665,11 +672,10 @@ function renderExport() {
   folder('images/', 1);
   file('images/README.txt', 'README.txt', 2, textFiles.get('images/README.txt') ?? '');
   file('images/.imagesconfig', '.imagesconfig', 2, textFiles.get('images/.imagesconfig') ?? '');
+  file('images/.gitignore', '.gitignore', 2, textFiles.get('images/.gitignore') ?? '');
   for (const item of images) file(zipSourceName(item), zipSourceName(item).slice('images/'.length), 2, t('export.sourcePreview', {
     type: item.sourceType || t('export.unknownType'), width: item.image.width, height: item.image.height,
   }));
-  folder('.gfx-image-tool/', 2);
-  file('images/.gfx-image-tool/headers.json', 'headers.json', 3, textFiles.get('images/.gfx-image-tool/headers.json') ?? '');
   if (!selectedExportPath || !available.has(selectedExportPath)) selectedExportPath = settings.outputFile;
   const source = available.get(selectedExportPath) ?? '';
   $('export-preview-title').textContent = `${t('export.preview')}: ${selectedExportPath}`;
@@ -750,14 +756,14 @@ for (const id of settingIds) $(id).addEventListener('input', () => {
   readSettings(); recompute();
 });
 
-for (const id of ['override-symbol', 'override-mode', 'override-format', 'override-colors', 'override-threshold', 'override-dither']) {
+for (const id of ['override-mode', 'override-format', 'override-colors', 'override-threshold', 'override-dither']) {
   $(id).addEventListener('input', () => {
     const item = selectedItem(); if (!item) return;
     const value = /** @type {HTMLInputElement|HTMLSelectElement} */ ($(id)).value;
     const key = id.replace('override-', '');
     if (!value) delete item.override[/** @type {keyof Override} */ (key)];
     else if (key === 'colors' || key === 'threshold') item.override[key] = Number(value);
-    else item.override[/** @type {'symbol'|'mode'|'format'|'dither'} */ (key)] = value;
+    else item.override[/** @type {'mode'|'format'|'dither'} */ (key)] = value;
     recompute();
   });
 }
@@ -799,12 +805,7 @@ function setSelectedSourceKey(color) {
   recompute();
 }
 
-$('pick-source-key').addEventListener('click', async () => {
-  const EyeDropperClass = /** @type {any} */ (window).EyeDropper;
-  if (EyeDropperClass) {
-    try { setSelectedSourceKey((await new EyeDropperClass().open()).sRGBHex); } catch { /* user cancelled */ }
-    return;
-  }
+$('pick-source-key').addEventListener('click', () => {
   pickingSourceKey = true;
   $('original-preview').classList.add('picking-color');
   setStatus(t('status.pickSourceColor'));

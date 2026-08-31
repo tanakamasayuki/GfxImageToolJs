@@ -177,10 +177,11 @@ The new `.imagesconfig` lives in `MySketch/images/` and defaults to `output_dir 
 `output_dir` and `output_file` may point elsewhere. `--check` is read-only and exits 2 for missing,
 different, or stale output. `images/.gfx-image-tool/headers.json` tracks headers, while preview
 outputs retain their own manifest. A normal build removes manifest-tracked orphans and never removes
-an untracked user file. Root-level legacy `.imagesconfig` projects remain readable.
+an untracked user file. `.gfx-image-tool/` is derived cache: keep it out of Git and delete it freely;
+the same headers are regenerated.
 
-Without a manifest, old output cannot safely be identified as stale. Commit these dotfiles whenever
-generated assets are committed.
+Without the cache, old output cannot safely be identified as stale. Expected headers are still
+checked, with a warning that stale detection was skipped; a normal build recreates the cache.
 
 ## What a preview proves
 

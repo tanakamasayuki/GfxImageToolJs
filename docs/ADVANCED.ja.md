@@ -172,11 +172,12 @@ gfx-image-tool build ./MySketch --check
 新規projectの`.imagesconfig`は`MySketch/images/`にあり、`output_dir = ..`が既定です。任意の
 `output_dir`と`output_file`へ変更できます。`--check`はread-onlyで、欠落・差分・stale outputがあれば
 終了2です。headerは`images/.gfx-image-tool/headers.json`、previewはpreview出力先のmanifestで、ツールが
-以前生成したファイルだけを追跡します。通常buildはmanifest上の孤立ファイルを削除し、利用者が置いた
-未追跡ファイルは削除しません。旧来のroot直下`.imagesconfig`構成も読込互換として扱います。
+以前生成したファイルだけを追跡します。通常buildはcache上の孤立ファイルを削除し、利用者が置いた
+未追跡ファイルは削除しません。`.gfx-image-tool/`は派生cacheなのでgitへ入れず、削除しても同じheaderへ
+戻せます。
 
-manifestがなければ、過去の生成物を安全にstaleと断定できません。生成物をcommitする運用ではdotfileも
-含めます。
+cacheがなければ、過去の生成物を安全にstaleと断定できません。その場合も期待するheaderの一致は検査し、
+stale検出を省略したwarningを出します。次の通常buildでcacheを再作成します。
 
 ## Previewは何を保証するか
 

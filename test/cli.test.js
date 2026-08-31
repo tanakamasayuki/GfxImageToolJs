@@ -119,7 +119,8 @@ test('CLI builds an auto-selected TinyGFX CellImage', async () => {
 
 test('CLI directory TinyGFX override keeps auto candidates and matches one-image selection', async () => {
   const { dir } = await fixture();
-  const flat = join(dir, 'flat.png');
+  await mkdir(join(dir, 'images'));
+  const flat = join(dir, 'images', 'flat.png');
   const canvas = createCanvas(32, 1);
   const context = canvas.getContext('2d');
   context.fillStyle = '#ff0000';
@@ -153,7 +154,7 @@ test('CLI exports converted and side-by-side comparison PNG previews', async () 
 
 test('CLI file and directory TinyGFX builds both preserve source transparency by default', async () => {
   const root = await mkdtemp(join(tmpdir(), 'gfx-image-alpha-cli-'));
-  const sources = join(root, 'sources');
+  const sources = join(root, 'images');
   await mkdir(sources);
   const path = join(sources, 'alpha.png');
   const canvas = createCanvas(2, 1);
@@ -170,12 +171,12 @@ test('CLI file and directory TinyGFX builds both preserve source transparency by
 
 test('CLI directory relative out and preview paths share the current working directory base', async () => {
   const work = await mkdtemp(join(tmpdir(), 'gfx-image-path-base-'));
-  const sources = join(work, 'sources');
+  const sources = join(work, 'images');
   await mkdir(sources);
   const canvas = createCanvas(1, 1);
   canvas.getContext('2d').fillRect(0, 0, 1, 1);
   await writeFile(join(sources, 'pixel.png'), await canvas.encode('png'));
-  const args = [cli, 'build', 'sources', '--out', 'outdir', '--preview', 'prevdir', '--json'];
+  const args = [cli, 'build', 'images', '--out', 'outdir', '--preview', 'prevdir', '--json'];
   const built = JSON.parse((await exec(process.execPath, args, { cwd: work })).stdout);
   assert.equal(built.results[0].path, '../outdir/images.h');
   assert.equal(built.previews[0].path, '../prevdir/pixel.png');
@@ -188,13 +189,15 @@ test('CLI directory relative out and preview paths share the current working dir
 
 test('CLI project preview config can emit and check converted and comparison images together', async () => {
   const root = await mkdtemp(join(tmpdir(), 'gfx-image-preview-config-'));
+  const project = join(root, 'images');
+  await mkdir(project);
   const canvas = createCanvas(1, 1);
   canvas.getContext('2d').fillRect(0, 0, 1, 1);
-  await writeFile(join(root, 'pixel.png'), await canvas.encode('png'));
-  await writeFile(join(root, '.imagesconfig'), '[preview]\noutput_dir = previews\nlayout = both\n');
+  await writeFile(join(project, 'pixel.png'), await canvas.encode('png'));
+  await writeFile(join(project, '.imagesconfig'), '[preview]\noutput_dir = .gfx-image-tool/previews\nlayout = both\n');
   const built = JSON.parse((await exec(process.execPath, [cli, 'build', root, '--json'])).stdout);
-  assert.equal(built.previews[0].path, 'previews/pixel.png');
-  assert.equal(built.previews[1].path, 'previews/pixel.comparison.png');
+  assert.equal(built.previews[0].path, '.gfx-image-tool/previews/pixel.png');
+  assert.equal(built.previews[1].path, '.gfx-image-tool/previews/pixel.comparison.png');
   const checked = JSON.parse((await exec(process.execPath, [cli, 'build', root, '--check', '--json'])).stdout);
   assert.equal(checked.previews[0].status, 'upToDate');
   assert.equal(checked.previews[1].status, 'upToDate');
@@ -203,15 +206,17 @@ test('CLI project preview config can emit and check converted and comparison ima
 
 test('CLI check rejects stale split headers and previews, then build removes them', async () => {
   const root = await mkdtemp(join(tmpdir(), 'gfx-image-stale-cli-'));
+  const project = join(root, 'images');
+  await mkdir(project);
   const canvas = createCanvas(1, 1);
   canvas.getContext('2d').fillRect(0, 0, 1, 1);
-  await writeFile(join(root, 'keep.png'), await canvas.encode('png'));
-  await writeFile(join(root, 'gone.png'), await canvas.encode('png'));
-  await writeFile(join(root, '.imagesconfig'), '[general]\noutput_mode = split\n[preview]\noutput_dir = previews\n');
+  await writeFile(join(project, 'keep.png'), await canvas.encode('png'));
+  await writeFile(join(project, 'gone.png'), await canvas.encode('png'));
+  await writeFile(join(project, '.imagesconfig'), '[general]\noutput_mode = split\n[preview]\noutput_dir = .gfx-image-tool/previews\n');
   await exec(process.execPath, [cli, 'build', root]);
-  const staleHeader = join(root, 'generated', 'gone.h');
-  const stalePreview = join(root, 'previews', 'gone.png');
-  await unlink(join(root, 'gone.png'));
+  const staleHeader = join(root, 'gone.h');
+  const stalePreview = join(project, '.gfx-image-tool', 'previews', 'gone.png');
+  await unlink(join(project, 'gone.png'));
   await assert.rejects(exec(process.execPath, [cli, 'build', root, '--check']), (error) => {
     assert.equal(/** @type {{code?: number}} */ (error).code, 2);
     return true;
@@ -225,24 +230,24 @@ test('CLI check rejects stale split headers and previews, then build removes the
   await assert.rejects(access(stalePreview));
 });
 
-test('CLI names missing manifests instead of contradicting up-to-date output lines', async () => {
+test('CLI treats missing manifests as disposable cache while warning about stale detection', async () => {
   const root = await mkdtemp(join(tmpdir(), 'gfx-image-missing-manifest-'));
+  const project = join(root, 'images');
+  await mkdir(project);
   const canvas = createCanvas(1, 1);
   canvas.getContext('2d').fillRect(0, 0, 1, 1);
-  await writeFile(join(root, 'pixel.png'), await canvas.encode('png'));
-  await writeFile(join(root, '.imagesconfig'), '[preview]\noutput_dir = previews\n');
+  await writeFile(join(project, 'pixel.png'), await canvas.encode('png'));
+  await writeFile(join(project, '.imagesconfig'), '[preview]\noutput_dir = .gfx-image-tool/previews\n');
   await exec(process.execPath, [cli, 'build', root]);
-  await unlink(join(root, 'generated', '.gfx-image-tool-headers.json'));
-  await unlink(join(root, 'previews', '.gfx-image-tool-previews.json'));
-  await assert.rejects(exec(process.execPath, [cli, 'build', root, '--check']), (error) => {
-    const failure = /** @type {{code?: number, stderr?: string}} */ (error);
-    assert.equal(failure.code, 2);
-    assert.match(failure.stderr ?? '', /generated\/\.gfx-image-tool-headers\.json  missing manifest/);
-    assert.match(failure.stderr ?? '', /previews\/\.gfx-image-tool-previews\.json  missing manifest/);
-    assert.match(failure.stderr ?? '', /output or manifest is stale, different, or missing/);
-    return true;
-  });
+  await unlink(join(project, '.gfx-image-tool', 'headers.json'));
+  await unlink(join(project, '.gfx-image-tool', 'previews', '.gfx-image-tool-previews.json'));
+  const checked = await exec(process.execPath, [cli, 'build', root, '--check']);
+  assert.match(checked.stderr, /\.gfx-image-tool\/headers\.json  missing manifest/);
+  assert.match(checked.stderr, /\.gfx-image-tool\/previews\/\.gfx-image-tool-previews\.json  missing manifest/);
+  assert.match(checked.stderr, /header cache is missing; expected headers were checked, but stale headers could not be detected/);
+  assert.match(checked.stderr, /preview cache is missing; expected previews were checked, but stale previews could not be detected/);
   const rebuilt = await exec(process.execPath, [cli, 'build', root]);
-  assert.match(rebuilt.stderr, /header manifest was missing; stale headers could not be detected/);
-  assert.match(rebuilt.stderr, /preview manifest was missing; stale previews could not be detected/);
+  assert.doesNotMatch(rebuilt.stderr, /cache is missing/);
+  await access(join(project, '.gfx-image-tool', 'headers.json'));
+  await access(join(project, '.gfx-image-tool', 'previews', '.gfx-image-tool-previews.json'));
 });

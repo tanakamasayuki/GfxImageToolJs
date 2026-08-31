@@ -81,14 +81,13 @@ gfx-image-project/
   images.h         generated header included by firmware
   images/
     .imagesconfig  conversion settings
+    .gitignore     excludes .gfx-image-tool/
     icon.png       original input
     ui/splash.png
-    .gfx-image-tool/
-      headers.json generated-output tracking
 ```
 
-Only `images.h` normally appears beside the sketch. Originals, settings, and tool state stay under
-`images/`, and `.gfx-image-tool/` is always excluded from input scans. Reports and preview PNGs stay
+Only `images.h` normally appears beside the sketch. Originals and settings stay under `images/`;
+the runtime `.gfx-image-tool/` cache is excluded from input scans and Git. Reports and preview PNGs stay
 in the web UI or are downloaded separately instead of being mixed into the default project ZIP.
 
 Adding several images at once is useful. For TinyGFX, the tool can then reduce total flash use by
@@ -212,8 +211,8 @@ output_dir = .gfx-image-tool/previews
 layout = both
 ```
 
-Commit the hidden manifests with generated headers and previews. They let the tool detect outputs
-whose source image has been deleted.
+Do not commit `.gfx-image-tool/`; it is recreated by the next build. A cache-less `--check` still
+checks expected headers, but warns that it cannot identify an old split header from a deleted source.
 
 ## Draw a TinyGFX asset
 

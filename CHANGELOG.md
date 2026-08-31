@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- (EN) Adopt a clean `images/ -> ../images.h` project layout with configurable output placement, sketch-root CLI discovery, disposable Git-ignored tool cache, and matching Web ZIP import/export.
+- (JA) `images/ -> ../images.h`の整理されたproject構成、変更可能な出力先、CLIのsketch root自動検出、git管理不要の再生成cache、同構成のWeb ZIP入出力を追加。
+- (EN) Simplify per-image Web settings by hiding irrelevant controls, removing the symbol override field, constraining the eyedropper to source pixels, and explicitly clearing/reporting unmatched source color keys.
+- (JA) Webの画像別設定で不要項目を非表示にし、symbol個別指定を削除、スポイトを原画pixelへ限定し、元画像に存在しない抜き色は透明化0件へ戻して明示。
 - (EN) Make browser project ZIPs reopenable and rebuildable with original files under `images/`, add per-image source-color eyedropper transparency and blinking preview backgrounds, clarify final results and conversion failures, enlarge UI text, and prevent TinyGFX auto optimization from erasing the second color of an opaque two-color image through bitmap selection.
 - (JA) Web project ZIPを`images/`の元画像込みで再読込・再生成可能にし、画像別の元色スポイト透過、背景点滅、最終結果と変換失敗の明示、文字サイズ改善を追加、TinyGFX自動最適化が不透明2色画像をbitmap化して片方の色を消す問題を修正。
 - (EN) Improve the browser workspace with human-readable settings and help, sorted replacement-safe images, effective per-image values, selectable preview backgrounds, confirmed removal, dropped configuration import, file previews, and a complete project ZIP.

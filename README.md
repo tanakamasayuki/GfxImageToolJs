@@ -70,8 +70,9 @@ gfx-image-tool build ./MySketch --target tinygfx \
   --preview ./previews --preview-layout both
 ```
 
-The canonical layout keeps the header manifest at `images/.gfx-image-tool/headers.json`. Commit it
-with generated assets so `--check` can detect sources that were removed.
+`images/.gfx-image-tool/` is disposable cache and is excluded by the `images/.gitignore` created by
+`init`. Removing it does not change regenerated headers. `--check` still validates expected outputs,
+but warns that stale split outputs cannot be discovered on a cache-less run.
 
 ## Formats and targets
 

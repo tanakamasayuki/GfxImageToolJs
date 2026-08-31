@@ -11,13 +11,15 @@ from a maintainer workstation.
 2. Review the [README](../README.md), [getting-started guide](GUIDE.md),
    [advanced guide](ADVANCED.md), [CLI reference](CLI.md), and changelog.
 3. Exercise representative CLI paths: one image, a directory bundle, transparency, previews, and
-   `--check`.
+   `--check`. For a canonical project, remove `.gfx-image-tool/`, confirm the same header is rebuilt,
+   and confirm cache absence alone lets `--check` succeed with a warning.
 4. Open the web app in a Chromium browser and Firefox. Check multiple images, same-name replacement,
    transparency and backgrounds (including blink), the source-color eyedropper and its `source_key`
-   export, final-result transparency details, converted previews, downloads, configuration drop/export, and both
-   locales. Download a project ZIP, verify its `images/`, `generated/`, and `previews/` structure,
-   then drop that ZIP back into a fresh page and confirm the project and settings are restored without
-   treating preview PNGs as inputs.
+   export, zero transparency for an absent source key, final-result transparency details, converted
+   previews, downloads, configuration drop/export, and both
+   locales. Download a project ZIP and verify root `images.h` plus originals, `.imagesconfig`, and
+   `.gitignore` under `images/`. Confirm report, previews, and `.gfx-image-tool/` are absent, then
+   drop that ZIP into a fresh page and verify settings and originals are restored.
 5. After pushing `main`, open <https://tanakamasayuki.github.io/GfxImageToolJs/> directly. Confirm
    that the deployed build has no missing assets or stale-cache behavior.
 

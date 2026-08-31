@@ -6,5 +6,5 @@ export { parseIniConfig, parseImagesConfig, resolveImageConfig, IMAGES_CONFIG_TE
 export { buildGlobMatcher, buildImagesIgnoreMatcher, globToRegExpSource } from './ignore.js';
 export {
   buildImageProject, collectImageEntries, createImagesConfig, writeImageProject,
-  IMAGE_PROJECT_DIR, IMAGE_PROJECT_STATE_DIR, isImageProjectDirectoryName, resolveImageProjectDirectory,
+  IMAGE_PROJECT_DIR, IMAGE_PROJECT_STATE_DIR, IMAGE_PROJECT_GITIGNORE, isImageProjectDirectoryName, resolveImageProjectDirectory,
 } from './project.js';

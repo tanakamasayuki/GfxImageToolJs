@@ -19,8 +19,6 @@ gfx-image-tool init [directory]
 既定で親の`MySketch/images.h` 1本へまとめます。`build MySketch/images`も同じです。`init`は既存設定を
 上書きしません。`[general] output_mode = split`で画像別headerへ切り替えられます。
 
-旧来のdirectory直下に`.imagesconfig`がある場合は、そちらを優先して直接projectとして読み込みます。
-
 ## 共通オプション
 
 | option | 内容 |
@@ -76,9 +74,10 @@ MySketch/
 ├── images.h
 └── images/
     ├── .imagesconfig
+    ├── .gitignore
     ├── icon.png
     └── .gfx-image-tool/
-        └── headers.json
+        └── headers.json  # git管理しないcache
 ```
 
 既定設定は`output_dir = ..`です。`EmbedAssetToolJs`と同様に、出力directoryとheader名を変更できます。
@@ -146,16 +145,16 @@ TinyGFXの`auto`では、最終的な抜き色またはbitmap背景として保�
 
 ## 孤立した生成物
 
-canonical projectはheader追跡情報を`images/.gfx-image-tool/headers.json`へ、preview追跡情報を
+canonical projectはheader追跡cacheを`images/.gfx-image-tool/headers.json`へ、preview追跡情報を
 preview先の`.gfx-image-tool-previews.json`へ生成し、前回生成したファイル集合を記録します。元画像を
 削除した場合、通常buildはmanifestに記録された孤立header/PNGだけを削除し、JSON reportでは
 `removed`とします。`--check`はファイルを変更せず`stale`として報告し、終了コード2を返します。
 
-生成物をcommitする運用では、この2つのhidden manifestも一緒にcommitしてください。
-manifestに載っていない利用者ファイルは削除対象になりません。
-`--check`はmanifest自体も`upToDate manifest`、`mismatch manifest`、`missing manifest`として
-path付きで表示します。通常build時にmanifestが無ければ作り直しますが、そのbuildでは以前の
-孤立ファイルを特定できないためwarningを表示します。
+`.gfx-image-tool/`は`init`が作る`.gitignore`で除外する再生成可能なcacheなので、commit不要です。
+cacheに載っていない利用者ファイルは削除対象になりません。
+`--check`はcache自体も`upToDate manifest`、`mismatch manifest`、`missing manifest`としてpath付きで
+表示しますが、cacheの欠落・差分だけでは終了2にしません。cacheが無い回は期待する出力だけを検査し、
+以前の孤立ファイルを特定できない旨をwarningにします。通常buildはcacheを作り直します。
 
 入力名が数字またはunderscoreで始まる場合、C/C++の予約識別子を避けるためsymbolへ`img_`
 系prefixを付けます。例: `2nd.png` → `img_2ndRef`。

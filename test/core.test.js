@@ -60,6 +60,13 @@ test('source color key makes exact RGB matches transparent', () => {
   ]);
 });
 
+test('a source color key absent from the image clears no pixels', () => {
+  const source = createImage(2, 1, [255, 0, 0, 255, 0, 0, 255, 255]);
+  const keyed = applyColorKey(source, [0, 255, 0]);
+  assert.deepEqual([...keyed.pixels], [...source.pixels]);
+  assert.equal([...keyed.pixels].filter((value, index) => index % 4 === 3 && value === 0).length, 0);
+});
+
 test('canEncode reports stable issues instead of throwing', () => {
   const image = rgba([0, 0, 0, 255]);
   assert.deepEqual(canEncode(image, 'rgb565be'), { ok: true, issues: [] });

@@ -247,13 +247,13 @@ async function run(command, argv) {
       for (const item of result.previews) console.error(`${item.path}  ${item.status}  preview`);
       console.error(`${result.manifest.path}  ${manifestStatus(result.manifest.status)}`);
       if (result.previewManifest) console.error(`${result.previewManifest.path}  ${manifestStatus(result.previewManifest.status)}`);
-      if (!parsed.values.check && !built.manifest.hadManifest) console.error('warning: header manifest was missing; stale headers could not be detected on this build.');
-      if (!parsed.values.check && previewGeneration.manifest && !previewGeneration.manifest.hadManifest) console.error('warning: preview manifest was missing; stale previews could not be detected on this build.');
+      if (parsed.values.check && !built.manifest.hadManifest) console.error('warning: header cache is missing; expected headers were checked, but stale headers could not be detected.');
+      if (parsed.values.check && previewGeneration.manifest && !previewGeneration.manifest.hadManifest) console.error('warning: preview cache is missing; expected previews were checked, but stale previews could not be detected.');
       for (const item of [...result.stale, ...result.stalePreviews]) console.error(`${item.path}  ${item.status}`);
     }
-    const checkOutputs = [...built.results, built.manifest, ...built.stale, ...previewGeneration.outputs, ...previewGeneration.stale, ...(previewGeneration.manifest ? [previewGeneration.manifest] : [])];
+    const checkOutputs = [...built.results, ...built.stale, ...previewGeneration.outputs, ...previewGeneration.stale];
     if (checkOutputs.some((item) => item.status === 'mismatch' || item.status === 'missingOutput' || item.status === 'stale')) {
-      throw new CliError('--check: generated output or manifest is stale, different, or missing', 2);
+      throw new CliError('--check: generated output is stale, different, or missing', 2);
     }
     return;
   }

@@ -35,7 +35,9 @@ test('web workspace exposes project inputs and core-only module entry', async ()
   assert.match(app, /readStoredZip/);
   assert.match(app, /images\/\.imagesconfig/);
   assert.match(app, /output_dir = \.\./);
-  assert.match(app, /images\/\.gfx-image-tool\/headers\.json/);
+  assert.doesNotMatch(app, /\['images\/\.gfx-image-tool\/headers\.json'/);
+  assert.doesNotMatch(html, /id="override-symbol"/);
+  assert.match(app, /sourceKeyNoMatch/);
   assert.doesNotMatch(app, /entries\.push\(\{ name: `previews\//);
   assert.match(app, /delete item\.override/);
   assert.match(app, /sourceKey: 'source_key'/);

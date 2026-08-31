@@ -26,7 +26,7 @@ Gfx Image Toolは、実際の変換後画素をpreviewし、互換性のあるta
 [Web版](https://tanakamasayuki.github.io/GfxImageToolJs/)を開き、1枚以上の画像を追加してtargetの
 描画libraryを選びます。原画と変換後を比較して、次をdownloadできます。
 
-- rootの`images.h`と、`images/`配下に元画像・設定・管理情報をまとめた再生成可能なproject ZIP
+- rootの`images.h`と、`images/`配下に元画像・設定をまとめた再生成可能なproject ZIP
 - projectの`.h`または選択画像のheader単体
 - 変換後PNGと左右比較PNG
 - CLIで再現するための`.imagesconfig`
@@ -66,8 +66,9 @@ gfx-image-tool build ./MySketch --target tinygfx \
   --preview ./previews --preview-layout both
 ```
 
-新構成ではheader生成manifestを`images/.gfx-image-tool/headers.json`へまとめます。削除された元画像も
-`--check`で検出できるよう、manifestを生成物と一緒にcommitしてください。
+`images/.gfx-image-tool/`は再生成可能なcacheで、`init`が作る`images/.gitignore`によりgit管理されません。
+cacheが無くても同じheaderを生成でき、`--check`は期待する生成物を検査します。ただしcacheが無い回だけは
+過去のsplit出力をstaleとして検出できないためwarningを表示します。
 
 ## 形式とTarget
 

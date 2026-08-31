@@ -81,14 +81,13 @@ gfx-image-project/
   images.h         firmwareからincludeする生成header
   images/
     .imagesconfig  変換設定
+    .gitignore     .gfx-image-tool/を除外
     icon.png       変換元画像
     ui/splash.png
-    .gfx-image-tool/
-      headers.json 生成物の追跡情報
 ```
 
-スケッチ直下へ増えるのは通常`images.h`だけです。元画像、設定、tool管理情報は`images/`内にまとまり、
-`.gfx-image-tool/`は常に入力走査から除外されます。reportとpreview PNGはWeb画面または個別downloadで
+スケッチ直下へ増えるのは通常`images.h`だけです。元画像と設定は`images/`内にまとまり、実行時にできる
+`.gfx-image-tool/`は常に入力走査とgit管理から除外されます。reportとpreview PNGはWeb画面または個別downloadで
 確認し、既定のproject ZIPには入れません。
 
 複数画像を同時に入れて構いません。特にTinyGFXでは、画像をまとめて評価したほうが、
@@ -209,8 +208,8 @@ output_dir = .gfx-image-tool/previews
 layout = both
 ```
 
-生成されたhidden manifestもheaderやpreviewと一緒にcommitしてください。元画像を削除したとき、
-古い生成物を検出するために使われます。
+`.gfx-image-tool/`内のcacheはcommit不要です。削除しても次のbuildで復元します。cacheが無い状態の
+`--check`は期待headerを検査できますが、以前のsplit headerを追跡できないためwarningを表示します。
 
 ## TinyGFXで表示する
 

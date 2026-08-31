@@ -18,6 +18,7 @@ import { HEADER_MANIFEST, planGeneratedOutputs } from './manifest.js';
 
 export const IMAGE_PROJECT_DIR = 'images';
 export const IMAGE_PROJECT_STATE_DIR = '.gfx-image-tool';
+export const IMAGE_PROJECT_GITIGNORE = `${IMAGE_PROJECT_STATE_DIR}/\n`;
 
 /** @param {string} name */
 export function isImageProjectDirectoryName(name) {
@@ -25,8 +26,8 @@ export function isImageProjectDirectoryName(name) {
 }
 
 /** @param {string} path */
-async function isFile(path) {
-  try { return (await stat(path)).isFile(); }
+async function isDirectory(path) {
+  try { return (await stat(path)).isDirectory(); }
   catch (error) {
     if (/** @type {NodeJS.ErrnoException} */ (error).code === 'ENOENT') return false;
     throw error;
@@ -34,15 +35,15 @@ async function isFile(path) {
 }
 
 /**
- * Resolve a sketch directory to its images/ project. A direct .imagesconfig always wins so old
- * projects remain unambiguous; passing images/ itself also works.
+ * Resolve a sketch directory to its images/ project. Passing images/ itself also works.
  * @param {string} directory
  */
 export async function resolveImageProjectDirectory(directory) {
   const root = resolve(directory);
-  if (isImageProjectDirectoryName(basename(root)) || await isFile(join(root, '.imagesconfig'))) return root;
+  if (isImageProjectDirectoryName(basename(root))) return root;
   const nested = join(root, IMAGE_PROJECT_DIR);
-  return await isFile(join(nested, '.imagesconfig')) ? nested : root;
+  if (await isDirectory(nested)) return nested;
+  throw new Error(`Image project directory not found: ${nested}. Run gfx-image-tool init ${root} first.`);
 }
 
 /** @param {string} path */
@@ -112,9 +113,7 @@ export async function buildImageProject(projectDir, options = {}) {
   const root = resolve(projectDir);
   const info = await stat(root);
   if (!info.isDirectory()) throw new Error(`Not a directory: ${root}`);
-  const configText = await optionalText(join(root, '.imagesconfig'));
-  const config = parseImagesConfig(configText);
-  if (!configText && isImageProjectDirectoryName(basename(root))) config.general.outputDir = '..';
+  const config = parseImagesConfig(await optionalText(join(root, '.imagesconfig')));
   if (options.outputDir !== undefined) config.general.outputDir = options.outputDir;
   if (options.previewDir !== undefined) config.preview.outputDir = options.previewDir;
   if (options.previewLayout !== undefined) config.preview.layout = options.previewLayout;
@@ -347,11 +346,15 @@ export async function createImagesConfig(projectDir) {
   const root = isImageProjectDirectoryName(basename(requested)) ? requested : join(requested, IMAGE_PROJECT_DIR);
   await mkdir(root, { recursive: true });
   const path = join(root, '.imagesconfig');
+  let status;
   try {
     await writeFile(path, IMAGES_CONFIG_TEMPLATE, { encoding: 'utf8', flag: 'wx' });
-    return { path, status: /** @type {const} */ ('created') };
+    status = /** @type {const} */ ('created');
   } catch (error) {
-    if (/** @type {NodeJS.ErrnoException} */ (error).code === 'EEXIST') return { path, status: /** @type {const} */ ('exists') };
-    throw error;
+    if (/** @type {NodeJS.ErrnoException} */ (error).code === 'EEXIST') status = /** @type {const} */ ('exists');
+    else throw error;
   }
+  try { await writeFile(join(root, '.gitignore'), IMAGE_PROJECT_GITIGNORE, { encoding: 'utf8', flag: 'wx' }); }
+  catch (error) { if (/** @type {NodeJS.ErrnoException} */ (error).code !== 'EEXIST') throw error; }
+  return { path, status };
 }

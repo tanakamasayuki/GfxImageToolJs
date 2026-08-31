@@ -16,7 +16,7 @@ Choose a document based on what you need:
 | Review release-by-release changes | [Changelog](../CHANGELOG.md) |
 
 The shortest path is to select images and an output library in the browser, inspect converted previews,
-and download the project ZIP. For ongoing generation, export `.imagesconfig` and move to CLI directory
-builds with `--check`.
+and download the project ZIP. For ongoing generation, extract it into the firmware project and run
+CLI builds and `--check` against that project root.
 
 [Back to the repository README](../README.md)
