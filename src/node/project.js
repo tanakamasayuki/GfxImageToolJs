@@ -28,6 +28,7 @@ async function optionalText(path) {
 export async function collectImageEntries(root, config) {
   root = resolve(root);
   const outputRoot = resolve(root, config.general.outputDir);
+  const previewRoot = config.preview.outputDir ? resolve(root, config.preview.outputDir) : undefined;
   const matchInput = buildGlobMatcher(config.input.patterns);
   const ignore = buildImagesIgnoreMatcher(await optionalText(join(root, '.imagesignore')));
   /** @type {ImageEntry[]} */
@@ -40,7 +41,7 @@ export async function collectImageEntries(root, config) {
       const absolute = join(directory, child.name);
       const portable = (prefix ? `${prefix}/${child.name}` : child.name).replaceAll('\\', '/');
       if (child.isDirectory()) {
-        if (resolve(absolute) === outputRoot || ignore.shouldIgnore(portable, true)) continue;
+        if (resolve(absolute) === outputRoot || resolve(absolute) === previewRoot || ignore.shouldIgnore(portable, true)) continue;
         await visit(absolute, portable);
       } else if (child.isFile() && !ignore.shouldIgnore(portable, false) && matchInput(portable)) {
         entries.push({ relative: portable, absolute });
@@ -75,7 +76,7 @@ function transparent565(color) {
 /**
  * Build every prospective header without writing.
  * @param {string} projectDir
- * @param {{outputDir?: string, prefix?: string, format?: string, target?: string, mode?: 'auto'|'monochrome'|'grayscale'|'indexed'|'true-color', colors?: number, dither?: import('./config.js').Dither, threshold?: number, invert?: boolean, alphaThreshold?: number, alphaColor?: 'auto'|[number, number, number], matte?: [number, number, number], decoderCost?: number, preferBitmap?: 'horizontal'|'vertical', alignedVblit?: boolean}} [options]
+ * @param {{outputDir?: string, previewDir?: string, previewLayout?: 'converted'|'comparison', prefix?: string, format?: string, target?: string, mode?: 'auto'|'monochrome'|'grayscale'|'indexed'|'true-color', colors?: number, dither?: import('./config.js').Dither, threshold?: number, invert?: boolean, alphaThreshold?: number, alphaColor?: 'auto'|[number, number, number], matte?: [number, number, number], decoderCost?: number, preferBitmap?: 'horizontal'|'vertical', alignedVblit?: boolean}} [options]
  */
 export async function buildImageProject(projectDir, options = {}) {
   const root = resolve(projectDir);
@@ -83,6 +84,8 @@ export async function buildImageProject(projectDir, options = {}) {
   if (!info.isDirectory()) throw new Error(`Not a directory: ${root}`);
   const config = parseImagesConfig(await optionalText(join(root, '.imagesconfig')));
   if (options.outputDir !== undefined) config.general.outputDir = options.outputDir;
+  if (options.previewDir !== undefined) config.preview.outputDir = options.previewDir;
+  if (options.previewLayout !== undefined) config.preview.layout = options.previewLayout;
   if (options.prefix !== undefined) config.general.prefix = options.prefix;
   if (options.target !== undefined) {
     const changedToTinyGfx = options.target === 'tinygfx' && config.general.target !== 'tinygfx';
@@ -110,6 +113,8 @@ export async function buildImageProject(projectDir, options = {}) {
   const bundleOutput = resolve(outputRoot, config.general.outputFile);
   if (!inside(outputRoot, bundleOutput)) throw new Error(`output_file escapes output_dir: ${config.general.outputFile}`);
   const entries = await collectImageEntries(root, config);
+  /** @type {{code: 'ALPHA_COMPOSITED', image: string, message: string}[]} */
+  const warnings = [];
   /** @type {PreparedImage[]} */
   const prepared = [];
   const symbols = new Map();
@@ -117,7 +122,17 @@ export async function buildImageProject(projectDir, options = {}) {
     const effective = resolveImageConfig(config, entry.relative);
     const original = await decodeImageFile(entry.absolute);
     let image = original;
-    if (effective.alpha.mode === 'none') image = transformImage(image, { alpha: { mode: 'none', matte: effective.alpha.matte } });
+    const hasNonOpaquePixels = original.pixels.some((value, index) => index % 4 === 3 && value !== 255);
+    const configuredAlphaMode = effective.alpha.mode;
+    if (effective.alpha.mode === 'auto') effective.alpha.mode = effective.general.target === 'tinygfx' ? 'color-key' : 'none';
+    if (effective.alpha.mode === 'none') {
+      if (configuredAlphaMode === 'none' && hasNonOpaquePixels) warnings.push({
+        code: 'ALPHA_COMPOSITED',
+        image: entry.relative,
+        message: `${entry.relative}: non-opaque pixels were composited onto matte because alpha mode is none.`,
+      });
+      image = transformImage(image, { alpha: { mode: 'none', matte: effective.alpha.matte } });
+    }
     if (effective.color.mode === 'grayscale') image = grayscaleImage(image);
     if (effective.color.mode === 'indexed') {
       if (!['none', 'floyd-steinberg'].includes(effective.color.dither)) throw new Error(`Indexed color only supports none or floyd-steinberg dither: ${entry.relative}`);
@@ -210,7 +225,7 @@ export async function buildImageProject(projectDir, options = {}) {
     const includes = images.map((image) => `#include "${relative(dirname(output), image.output).replaceAll('\\', '/')}"`);
     index = { output, source: `#pragma once\n\n${includes.join('\n')}\n` };
   }
-  return { root, outputRoot, config, images, bundle, index, optimization };
+  return { root, outputRoot, config, images, bundle, index, optimization, warnings };
 }
 
 /** @param {string} format */
@@ -230,7 +245,7 @@ function tinyAllowedFormats(format) {
 
 /**
  * @param {string} projectDir
- * @param {{outputDir?: string, prefix?: string, format?: string, target?: string, mode?: 'auto'|'monochrome'|'grayscale'|'indexed'|'true-color', colors?: number, dither?: import('./config.js').Dither, threshold?: number, invert?: boolean, alphaThreshold?: number, alphaColor?: 'auto'|[number, number, number], matte?: [number, number, number], decoderCost?: number, preferBitmap?: 'horizontal'|'vertical', alignedVblit?: boolean, check?: boolean}} [options]
+ * @param {{outputDir?: string, previewDir?: string, previewLayout?: 'converted'|'comparison', prefix?: string, format?: string, target?: string, mode?: 'auto'|'monochrome'|'grayscale'|'indexed'|'true-color', colors?: number, dither?: import('./config.js').Dither, threshold?: number, invert?: boolean, alphaThreshold?: number, alphaColor?: 'auto'|[number, number, number], matte?: [number, number, number], decoderCost?: number, preferBitmap?: 'horizontal'|'vertical', alignedVblit?: boolean, check?: boolean}} [options]
  */
 export async function writeImageProject(projectDir, options = {}) {
   const built = await buildImageProject(projectDir, options);

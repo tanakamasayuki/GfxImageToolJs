@@ -49,6 +49,8 @@ gfx-image-tool build icon.png --target tinygfx \
 directoryの場合、`--preview previews`のように出力directoryを指定します。入力のsubdirectory
 構造を保ったPNGが生成されます。previewはheaderへ格納された形式をdecodeした画素なので、
 RGB565の丸め、palette減色、1bpp化、透過を含みます。`comparison`は左が原画、右が変換後です。
+CLIで指定する相対`--out`と`--preview`は、単一画像・directoryのどちらもcurrent working
+directory基準です。`.imagesconfig`内の相対pathはproject root基準です。
 
 ## TinyGFX project
 
@@ -65,9 +67,13 @@ mode = auto
 threshold = 128
 
 [alpha]
-mode = color-key
+mode = auto
 threshold = 128
 color = auto
+
+[preview]
+output_dir = previews
+layout = converted
 
 [optimize]
 decoder_cost = 400
@@ -84,6 +90,9 @@ mode = monochrome
 `format = auto`ではproject内の全画像を集合として最適化します。形式を固定する場合は
 `raw565`、`rle565`、`rlepal4`、`bitmap1h`、`bitmap1v`を指定します。
 画像別sectionでは`alpha_mode`と`alpha_threshold`も上書きできます。
+`alpha.mode = auto`はTinyGFXで透過を`color-key`として保持します。`none`を明示した画像に
+非opaque pixelがある場合は`ALPHA_COMPOSITED` warningを出します。`preview.output_dir`を
+設定すると、`--preview`を毎回書かなくても通常buildと`--check`の両方へpreviewを含めます。
 
 `inspect --json`と`build --json`の`optimization`には、選択された形式集合、画素・paletteの
 合計byte数、decoder byte数、両者の合計が入ります。`vblit`欄の244 B（aligned）と

@@ -146,10 +146,11 @@ async function run(command, argv) {
   if (matte && transparentColor !== undefined) throw new CliError('--matte and --transparent-color cannot be used together.', 3);
   const previewLayout = parsed.values['preview-layout'] ?? 'converted';
   if (previewLayout !== 'converted' && previewLayout !== 'comparison') throw new CliError('--preview-layout must be converted or comparison.', 3);
-  if (parsed.values['preview-layout'] !== undefined && parsed.values.preview === undefined) throw new CliError('--preview-layout requires --preview.', 3);
   if (info.isDirectory()) {
     const projectOptions = {
-      outputDir: parsed.values.out,
+      outputDir: parsed.values.out === undefined ? undefined : resolve(parsed.values.out),
+      previewDir: parsed.values.preview === undefined ? undefined : resolve(parsed.values.preview),
+      previewLayout: parsed.values['preview-layout'] === undefined ? undefined : /** @type {'converted'|'comparison'} */ (previewLayout),
       prefix: parsed.values.prefix,
       format: parsed.values.format,
       target: parsed.values.target,
@@ -167,13 +168,14 @@ async function run(command, argv) {
       check: !!parsed.values.check,
     };
     if (command === 'inspect') {
-      if (parsed.values.preview !== undefined) throw new CliError('--preview is only available with build.', 3);
+      if (parsed.values.preview !== undefined || parsed.values['preview-layout'] !== undefined) throw new CliError('--preview and --preview-layout are only available with build.', 3);
       const built = await buildImageProject(input, projectOptions);
       const result = {
         root: built.root,
         outputRoot: built.outputRoot,
         count: built.images.length,
         config: built.config,
+        warnings: built.warnings,
         images: built.images.map((image) => ({
           input: image.relative,
           output: relative(built.root, image.output).replaceAll('\\', '/'),
@@ -193,6 +195,7 @@ async function run(command, argv) {
       };
       if (parsed.values.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
       else {
+        for (const warning of built.warnings) console.error(`warning: ${warning.message}`);
         console.log(`${result.root}  ${result.count} images  -> ${result.outputRoot}`);
         for (const image of result.images) console.log(`  ${image.input.padEnd(28)} ${image.format.padEnd(16)} ${image.dataBytes + image.paletteBytes} B`);
         if (result.optimization) {
@@ -208,16 +211,19 @@ async function run(command, argv) {
     if (command !== 'build') throw new CliError(`unknown command: ${command}`, 3);
     const built = await writeImageProject(input, projectOptions);
     if (!built.images.length) throw new CliError(`no matching images in ${input}`, 1);
-    const previews = parsed.values.preview ? await writeProjectPreviews(
+    const previewDirectory = built.config.preview.outputDir ? resolve(built.root, built.config.preview.outputDir) : undefined;
+    if (parsed.values['preview-layout'] !== undefined && !previewDirectory) throw new CliError('--preview-layout requires --preview or [preview] output_dir.', 3);
+    const previews = previewDirectory ? await writeProjectPreviews(
       built,
-      resolve(parsed.values.preview),
-      /** @type {'converted'|'comparison'} */ (previewLayout),
+      previewDirectory,
+      built.config.preview.layout,
       !!parsed.values.check,
     ) : [];
     const result = {
       root: built.root,
       outputRoot: built.outputRoot,
       count: built.images.length,
+      warnings: built.warnings,
       optimization: built.optimization ? {
         formats: built.optimization.formats,
         dataBytes: built.optimization.dataBytes,
@@ -231,6 +237,7 @@ async function run(command, argv) {
     };
     if (parsed.values.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     else {
+      for (const warning of built.warnings) console.error(`warning: ${warning.message}`);
       for (const item of result.results) console.error(`${item.path}  ${item.status}`);
       for (const item of result.previews) console.error(`${item.path}  ${item.status}  preview`);
     }
@@ -240,6 +247,7 @@ async function run(command, argv) {
     return;
   }
   if (!info.isFile()) throw new CliError(`not a file or directory: ${input}`, 1);
+  if (parsed.values['preview-layout'] !== undefined && parsed.values.preview === undefined) throw new CliError('--preview-layout requires --preview.', 3);
   const original = await decodeImageFile(input);
   let image = original;
   if (matte) image = transformImage(image, { alpha: { mode: 'none', matte } });

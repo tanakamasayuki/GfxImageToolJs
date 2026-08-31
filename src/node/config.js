@@ -7,7 +7,8 @@ import { buildGlobMatcher } from './ignore.js';
  * @property {{outputDir: string, outputMode: 'bundle'|'split', outputFile: string, prefix: string, target: string, indexHeader: string}} general
  * @property {{patterns: string[]}} input
  * @property {{format: string, mode: 'auto'|'monochrome'|'grayscale'|'indexed'|'true-color', colors: number, dither: Dither, threshold: number, invert: boolean}} color
- * @property {{mode: 'none'|'color-key', matte: [number, number, number], threshold: number, color: 'auto'|[number, number, number]}} alpha
+ * @property {{mode: 'auto'|'none'|'color-key', matte: [number, number, number], threshold: number, color: 'auto'|[number, number, number]}} alpha
+ * @property {{outputDir: string, layout: 'converted'|'comparison'}} preview
  * @property {{storage: string, align: number, static: boolean}} csource
  * @property {{decoderCost: number, preferBitmap: 'horizontal'|'vertical', alignedVblit: boolean}} optimize
  * @property {{pattern: string, values: Record<string, string>}[]} overrides
@@ -79,12 +80,13 @@ export function parseImagesConfig(text) {
   const input = values('input');
   const color = values('color');
   const alpha = values('alpha');
+  const preview = values('preview');
   const csource = values('csource');
   const optimize = values('optimize');
   const dither = color.dither || 'none';
   if (!['none', 'floyd-steinberg', 'bayer2', 'bayer4', 'bayer8'].includes(dither)) throw new Error(`Unknown dither: ${dither}`);
-  const alphaMode = alpha.mode || 'none';
-  if (alphaMode !== 'none' && alphaMode !== 'color-key') throw new Error(`Unknown alpha mode: ${alphaMode}`);
+  const alphaMode = alpha.mode || 'auto';
+  if (alphaMode !== 'auto' && alphaMode !== 'none' && alphaMode !== 'color-key') throw new Error(`Unknown alpha mode: ${alphaMode}`);
   const alphaColor = !alpha.color || alpha.color === 'auto' ? 'auto' : parseRgb(alpha.color);
   const colorMode = color.mode || 'auto';
   if (!['auto', 'monochrome', 'grayscale', 'indexed', 'true-color'].includes(colorMode)) throw new Error(`Unknown color mode: ${colorMode}`);
@@ -94,6 +96,8 @@ export function parseImagesConfig(text) {
   const preferBitmap = optimize.prefer_bitmap || (alignedVblit ? 'vertical' : 'horizontal');
   if (preferBitmap !== 'horizontal' && preferBitmap !== 'vertical') throw new Error(`Unknown prefer_bitmap: ${preferBitmap}`);
   const target = general.target || 'generic-c';
+  const previewLayout = preview.layout || 'converted';
+  if (previewLayout !== 'converted' && previewLayout !== 'comparison') throw new Error(`Unknown preview layout: ${previewLayout}`);
   return {
     general: {
       outputDir: general.output_dir || 'generated',
@@ -116,10 +120,14 @@ export function parseImagesConfig(text) {
       invert: bool(color.invert, false, 'color.invert'),
     },
     alpha: {
-      mode: /** @type {'none'|'color-key'} */ (alphaMode),
+      mode: /** @type {'auto'|'none'|'color-key'} */ (alphaMode),
       matte: parseRgb(alpha.matte),
       threshold: integer(alpha.threshold, 128, 0, 255, 'alpha.threshold'),
       color: /** @type {'auto'|[number, number, number]} */ (alphaColor),
+    },
+    preview: {
+      outputDir: preview.output_dir || '',
+      layout: /** @type {'converted'|'comparison'} */ (previewLayout),
     },
     csource: {
       storage: csource.storage ?? 'PROGMEM',
@@ -148,6 +156,7 @@ export function resolveImageConfig(config, relativePath) {
       matte: /** @type {[number, number, number]} */ ([...config.alpha.matte]),
       color: config.alpha.color === 'auto' ? 'auto' : /** @type {[number, number, number]} */ ([...config.alpha.color]),
     },
+    preview: { ...config.preview },
     csource: { ...config.csource },
     optimize: { ...config.optimize },
     symbol: '',
@@ -170,7 +179,7 @@ export function resolveImageConfig(config, relativePath) {
     if (value.threshold !== undefined) effective.color.threshold = integer(value.threshold, 128, 0, 255, 'image.threshold');
     if (value.invert !== undefined) effective.color.invert = bool(value.invert, false, 'image.invert');
     if (value.alpha_mode !== undefined) {
-      if (value.alpha_mode !== 'none' && value.alpha_mode !== 'color-key') throw new Error(`Unknown alpha mode: ${value.alpha_mode}`);
+      if (value.alpha_mode !== 'auto' && value.alpha_mode !== 'none' && value.alpha_mode !== 'color-key') throw new Error(`Unknown alpha mode: ${value.alpha_mode}`);
       effective.alpha.mode = value.alpha_mode;
     }
     if (value.alpha_threshold !== undefined) effective.alpha.threshold = integer(value.alpha_threshold, 128, 0, 255, 'image.alpha_threshold');
@@ -212,10 +221,14 @@ threshold = 128
 invert = false
 
 [alpha]
-mode = none
+mode = auto
 matte = 000000
 threshold = 128
 color = auto
+
+[preview]
+# output_dir = previews
+layout = converted
 
 [csource]
 storage = PROGMEM

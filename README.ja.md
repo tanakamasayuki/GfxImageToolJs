@@ -28,6 +28,9 @@ gfx-image-tool build ./images --target tinygfx --preview ./previews --preview-la
 ```
 
 `--check`はファイルを書き換えず、欠落または差分があれば終了コード2を返します。
+TinyGFXのdirectory変換も単体変換と同様に透過を既定で保持します。相対`--out`と
+`--preview`はcurrent directory基準です。previewを毎回検査する場合は`.imagesconfig`の
+`[preview] output_dir = previews`へ保存できます。
 
 ## ブラウザ版
 

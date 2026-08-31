@@ -284,12 +284,14 @@ decoder ID と version を記録する。CI 用 golden は Node adapter を正�
 
 | mode | 動作 |
 | --- | --- |
+| `auto` | TinyGFXでは非opaque pixelをcolor-keyとして保持し、非対応targetではmatteへ合成 |
 | `none` | alpha を無視。透明画素は `matte` 色へ合成 |
 | `color-key` | 指定色または自動選択した 1 色を透過色にする |
 | `mask` | 独立 1bpp mask を生成する |
 | `alpha` | alpha を保持できる形式へ出す |
 
 - alpha threshold の既定は 128。
+- alpha modeの既定は`auto`。`none`で非opaque pixelを合成する場合はwarningへ記録する。
 - `color-key: auto` は変換後画像で未使用の表現可能色を決定的に選ぶ。空き色がなければ
   エラーとし、既存色を勝手に透明にしない。
 - パレット形式では transparent palette index を使う。
@@ -454,9 +456,13 @@ threshold = 128
 invert = false
 
 [alpha]
-mode = none
+mode = auto
 threshold = 128
 color = auto
+
+[preview]
+output_dir =
+layout = converted
 
 [csource]
 storage = PROGMEM

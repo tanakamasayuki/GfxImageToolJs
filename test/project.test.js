@@ -46,6 +46,7 @@ threshold = 99
 `);
   assert.deepEqual(config.alpha.matte, [0x10, 0x20, 0x30]);
   assert.equal(config.alpha.threshold, 96);
+  assert.equal(config.preview.layout, 'converted');
   assert.deepEqual(config.alpha.color, [0x12, 0x34, 0x56]);
   const normal = resolveImageConfig(config, 'photo.png');
   assert.equal(normal.color.format, 'rgb565be');
@@ -54,6 +55,25 @@ threshold = 99
   assert.equal(icon.color.colors, 4);
   assert.equal(icon.alpha.threshold, 64);
   assert.equal(resolveImageConfig(config, 'photo.png').color.threshold, 99);
+});
+
+test('project alpha auto preserves TinyGFX transparency and explicit none reports compositing', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'gfx-image-alpha-auto-'));
+  const canvas = createCanvas(2, 1);
+  const context = canvas.getContext('2d');
+  context.fillStyle = '#ff0000'; context.fillRect(0, 0, 1, 1);
+  context.clearRect(1, 0, 1, 1);
+  await writeFile(join(root, 'alpha.png'), await canvas.encode('png'));
+
+  const automatic = await buildImageProject(root, { target: 'tinygfx' });
+  assert.equal(automatic.warnings.length, 0);
+  assert.ok(automatic.images[0].encoded.transparent);
+  assert.match(automatic.bundle?.source ?? '', /\n  1,\n};/);
+
+  await writeFile(join(root, '.imagesconfig'), '[general]\ntarget = tinygfx\n[alpha]\nmode = none\n');
+  const matte = await buildImageProject(root);
+  assert.equal(matte.warnings[0].code, 'ALPHA_COMPOSITED');
+  assert.equal(matte.images[0].encoded.transparent, undefined);
 });
 
 test('aligned vblit defaults TinyGFX bitmap ties to vertical', () => {

@@ -20,6 +20,9 @@ arguments exit with status 3.
 `--preview <path>` writes pixels decoded from the generated asset. Use
 `--preview-layout comparison` to place the source on the left and converted pixels on the right.
 For directory builds, the preview path is an output directory and input subdirectories are preserved.
+Relative CLI `--out` and `--preview` paths use the current working directory; relative config paths
+use the project root. Configure persistent previews with `[preview] output_dir = previews` and
+`layout = converted|comparison`; they are then included in `--check` without repeating `--preview`.
 
 ## TinyGFX
 
@@ -33,6 +36,9 @@ For projects, set `[alpha] mode = color-key` and `threshold = 128` to preserve s
 collision-free TinyGFX transparent color or palette index. Set `[optimize] decoder_cost = 400` and
 `prefer_bitmap = horizontal|vertical` to configure set optimization. Per-image sections may fix a
 format and override `alpha_mode` or `alpha_threshold`.
+
+The project default is `[alpha] mode = auto`, which preserves TinyGFX source transparency. Explicit
+`none` composites onto the matte and reports `ALPHA_COMPOSITED` when non-opaque pixels are present.
 
 The JSON `optimization` object reports the selected format set, image data plus palette bytes,
 decoder bytes, and total bytes.

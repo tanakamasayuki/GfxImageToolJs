@@ -33,7 +33,7 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, Number.isFinite(v
 const SETTINGS_KEY = 'gfx-image-tool.project-settings.v1';
 const DEFAULTS = {
   target: 'tinygfx', mode: 'auto', format: 'auto', colors: 16, dither: 'none', threshold: 128,
-  alphaMode: 'color-key', alphaThreshold: 128, alphaColor: 'auto', decoderCost: 400,
+  alphaMode: 'auto', alphaThreshold: 128, alphaColor: 'auto', decoderCost: 400,
   preferBitmap: 'horizontal', alignedVblit: false, prefix: 'img_', outputFile: 'images.h',
 };
 
@@ -147,8 +147,9 @@ function defaultFormat(target) {
 function prepare(item) {
   const effective = { ...settings, ...item.override };
   let image = item.image;
+  const alphaMode = effective.alphaMode === 'auto' ? (settings.target === 'tinygfx' ? 'color-key' : 'none') : effective.alphaMode;
   const keepsAlphaMask = settings.target !== 'tinygfx' && effective.format === 'mask1-msb';
-  if (effective.alphaMode === 'none' || (settings.target !== 'tinygfx' && !keepsAlphaMask)) image = compositeAlpha(image, [0, 0, 0]);
+  if (alphaMode === 'none' || (settings.target !== 'tinygfx' && !keepsAlphaMask)) image = compositeAlpha(image, [0, 0, 0]);
   if (effective.mode === 'grayscale') image = grayscaleImage(image);
   if (effective.mode === 'indexed') {
     if (effective.dither !== 'none' && effective.dither !== 'floyd-steinberg') throw new Error(`${item.name}: indexed mode supports none or floyd-steinberg dither.`);
@@ -176,7 +177,7 @@ function recompute() {
         monochrome: effective.mode === 'monochrome', threshold: Number(effective.threshold),
         invert: false,
         dither: /** @type {'none'|'floyd-steinberg'|'bayer2'|'bayer4'|'bayer8'} */ (effective.dither),
-        alphaThreshold: effective.alphaMode === 'color-key' ? settings.alphaThreshold : undefined,
+        alphaThreshold: effective.alphaMode === 'color-key' || effective.alphaMode === 'auto' ? settings.alphaThreshold : undefined,
         transparentColor: alphaColor ? rgb565(alphaColor[0], alphaColor[1], alphaColor[2]) : undefined,
         allowedFormats: tinyAllowed(effective.format),
       })), { decoderCost: settings.decoderCost, preferBitmap: /** @type {'horizontal'|'vertical'} */ (settings.preferBitmap) });
