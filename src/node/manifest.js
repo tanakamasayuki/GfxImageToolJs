@@ -40,10 +40,11 @@ async function exists(path) {
  * @param {string} manifestName
  * @param {'headers'|'previews'} kind
  * @param {string[]} expectedPaths
+ * @param {{manifestPath?: string}} [options]
  */
-export async function planGeneratedOutputs(root, manifestName, kind, expectedPaths) {
+export async function planGeneratedOutputs(root, manifestName, kind, expectedPaths, options = {}) {
   root = resolve(root);
-  const manifestPath = resolve(root, manifestName);
+  const manifestPath = options.manifestPath ? resolve(options.manifestPath) : resolve(root, manifestName);
   const files = [...new Set(expectedPaths.map((path) => managedRelative(root, path)))].sort();
   /** @type {string[]} */
   let previous = [];

@@ -55,16 +55,43 @@ test('CLI rejects invalid options with exit code 3', async () => {
 test('CLI initializes, builds, and checks a directory project', async () => {
   const { dir, path } = await fixture();
   const init = await exec(process.execPath, [cli, 'init', dir, '--json']);
-  assert.equal(JSON.parse(init.stdout).status, 'created');
+  const initialized = JSON.parse(init.stdout);
+  assert.equal(initialized.status, 'created');
+  assert.equal(initialized.path, join(dir, 'images', '.imagesconfig'));
+  await mkdir(join(dir, 'images'), { recursive: true });
+  const imagePath = join(dir, 'images', 'pixel.png');
+  await writeFile(imagePath, await readFile(path));
+  await unlink(path);
   const build = await exec(process.execPath, [cli, 'build', dir, '--json']);
-  assert.equal(JSON.parse(build.stdout).count, 1);
+  const built = JSON.parse(build.stdout);
+  assert.equal(built.count, 1);
+  assert.equal(built.root, join(dir, 'images'));
+  assert.equal(built.results[0].path, '../images.h');
+  assert.equal(built.manifest.path, '.gfx-image-tool/headers.json');
+  await access(join(dir, 'images.h'));
   const check = await exec(process.execPath, [cli, 'build', dir, '--check', '--json']);
   assert.equal(JSON.parse(check.stdout).results[0].status, 'upToDate');
-  await writeFile(path, await createCanvas(1, 1).encode('png'));
+  await writeFile(imagePath, await createCanvas(1, 1).encode('png'));
   await assert.rejects(exec(process.execPath, [cli, 'build', dir, '--check']), (error) => {
     assert.equal(/** @type {{code?: number}} */ (error).code, 2);
     return true;
   });
+});
+
+test('CLI canonical project honors configured and command-line output directories', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'gfx-image-output-dir-'));
+  await exec(process.execPath, [cli, 'init', root]);
+  const canvas = createCanvas(1, 1);
+  canvas.getContext('2d').fillRect(0, 0, 1, 1);
+  await writeFile(join(root, 'images', 'pixel.png'), await canvas.encode('png'));
+  await writeFile(join(root, 'images', '.imagesconfig'), '[general]\noutput_dir = ../include/generated\noutput_file = artwork.h\n');
+  await exec(process.execPath, [cli, 'build', root]);
+  await access(join(root, 'include', 'generated', 'artwork.h'));
+  await access(join(root, 'images', '.gfx-image-tool', 'headers.json'));
+
+  const override = join(root, 'other-output');
+  await exec(process.execPath, [cli, 'build', root, '--out', override]);
+  await access(join(override, 'artwork.h'));
 });
 
 test('CLI builds an auto-selected TinyGFX CellImage', async () => {

@@ -4,4 +4,7 @@ export { encodePreviewPng } from './preview.js';
 export { planGeneratedOutputs, HEADER_MANIFEST, PREVIEW_MANIFEST } from './manifest.js';
 export { parseIniConfig, parseImagesConfig, resolveImageConfig, IMAGES_CONFIG_TEMPLATE } from './config.js';
 export { buildGlobMatcher, buildImagesIgnoreMatcher, globToRegExpSource } from './ignore.js';
-export { buildImageProject, collectImageEntries, createImagesConfig, writeImageProject } from './project.js';
+export {
+  buildImageProject, collectImageEntries, createImagesConfig, writeImageProject,
+  IMAGE_PROJECT_DIR, IMAGE_PROJECT_STATE_DIR, isImageProjectDirectoryName, resolveImageProjectDirectory,
+} from './project.js';

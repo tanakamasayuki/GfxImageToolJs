@@ -150,7 +150,7 @@ TinyGFX 1bppでは0 bitが透明として扱われるという消費側の制約
 
 ## BundleとSplit
 
-directory buildは既定で`generated/images.h` 1本を生成します。includeが簡単で、全画像のsymbol衝突を
+新規projectは`images/`内の全画像から、その親へ`images.h` 1本を生成します。includeが簡単で、全画像のsymbol衝突を
 一度に検査でき、生成物管理も明瞭です。一般的な`-fdata-sections`と`--gc-sections`を有効にした構成では、
 未参照のdata sectionをlinkerが除去できます。
 
@@ -165,13 +165,15 @@ directory buildは既定で`generated/images.h` 1本を生成します。include
 入れません。
 
 ```sh
-gfx-image-tool build ./images
-gfx-image-tool build ./images --check
+gfx-image-tool build ./MySketch
+gfx-image-tool build ./MySketch --check
 ```
 
-`--check`はread-onlyで、欠落・差分・stale outputがあれば終了2です。headerとpreviewの出力先にある
-`.gfx-image-tool-headers.json`と`.gfx-image-tool-previews.json`は、ツールが以前生成したファイルだけを
-追跡します。通常buildはmanifest上の孤立ファイルを削除し、利用者が置いた未追跡ファイルは削除しません。
+新規projectの`.imagesconfig`は`MySketch/images/`にあり、`output_dir = ..`が既定です。任意の
+`output_dir`と`output_file`へ変更できます。`--check`はread-onlyで、欠落・差分・stale outputがあれば
+終了2です。headerは`images/.gfx-image-tool/headers.json`、previewはpreview出力先のmanifestで、ツールが
+以前生成したファイルだけを追跡します。通常buildはmanifest上の孤立ファイルを削除し、利用者が置いた
+未追跡ファイルは削除しません。旧来のroot直下`.imagesconfig`構成も読込互換として扱います。
 
 manifestがなければ、過去の生成物を安全にstaleと断定できません。生成物をcommitする運用ではdotfileも
 含めます。
@@ -189,7 +191,7 @@ TinyGFXではhost oracleで全5形式をpixel exact比較するのが正検査�
 
 ```sh
 npm ci
-gfx-image-tool build assets --check
+gfx-image-tool build MySketch --check
 ```
 
 終了コード2は「生成物が最新でない」、3はoption/config誤り、1はI/O・decode・変換失敗です。JSONを処理する

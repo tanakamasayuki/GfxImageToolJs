@@ -5,7 +5,7 @@ import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { buildImageProject, createImagesConfig, decodeImageFile, encodePreviewPng, planGeneratedOutputs, PREVIEW_MANIFEST, writeImageProject } from '../src/node/index.js';
+import { buildImageProject, createImagesConfig, decodeImageFile, encodePreviewPng, planGeneratedOutputs, PREVIEW_MANIFEST, resolveImageProjectDirectory, writeImageProject } from '../src/node/index.js';
 import { decodeEncodedImage, emitCSource, encodeImage, grayscaleImage, inspectImage, listFormats, listTargets, optimizeTinyImage, reduceImageColors, rgb565, transformImage } from '../src/index.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -15,7 +15,7 @@ const USAGE = `gfx-image-tool — convert images into embedded C/C++ assets
 
   gfx-image-tool build <path> [options]     generate .h file(s)
   gfx-image-tool inspect <path> [options]   show image or project information
-  gfx-image-tool init [directory]           create a documented .imagesconfig
+  gfx-image-tool init [directory]           create images/.imagesconfig
   gfx-image-tool --version                  print the installed version
 
 options
@@ -147,6 +147,7 @@ async function run(command, argv) {
   const previewLayout = parsed.values['preview-layout'] ?? 'converted';
   if (previewLayout !== 'converted' && previewLayout !== 'comparison' && previewLayout !== 'both') throw new CliError('--preview-layout must be converted, comparison, or both.', 3);
   if (info.isDirectory()) {
+    const projectInput = await resolveImageProjectDirectory(input);
     const projectOptions = {
       outputDir: parsed.values.out === undefined ? undefined : resolve(parsed.values.out),
       previewDir: parsed.values.preview === undefined ? undefined : resolve(parsed.values.preview),
@@ -169,7 +170,7 @@ async function run(command, argv) {
     };
     if (command === 'inspect') {
       if (parsed.values.preview !== undefined || parsed.values['preview-layout'] !== undefined) throw new CliError('--preview and --preview-layout are only available with build.', 3);
-      const built = await buildImageProject(input, projectOptions);
+      const built = await buildImageProject(projectInput, projectOptions);
       const result = {
         root: built.root,
         outputRoot: built.outputRoot,
@@ -209,8 +210,8 @@ async function run(command, argv) {
       return;
     }
     if (command !== 'build') throw new CliError(`unknown command: ${command}`, 3);
-    const built = await writeImageProject(input, projectOptions);
-    if (!built.images.length) throw new CliError(`no matching images in ${input}`, 1);
+    const built = await writeImageProject(projectInput, projectOptions);
+    if (!built.images.length) throw new CliError(`no matching images in ${projectInput}`, 1);
     const previewDirectory = built.config.preview.outputDir ? resolve(built.root, built.config.preview.outputDir) : undefined;
     if (parsed.values['preview-layout'] !== undefined && !previewDirectory) throw new CliError('--preview-layout requires --preview or [preview] output_dir.', 3);
     const previewGeneration = previewDirectory ? await writeProjectPreviews(

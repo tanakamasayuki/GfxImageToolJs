@@ -14,9 +14,12 @@ gfx-image-tool inspect <path> [options]
 gfx-image-tool init [directory]
 ```
 
-`path`がファイルなら1枚を変換し、ディレクトリなら`.imagesconfig`を読み込んで
-対象画像を再帰処理し、既定で`generated/images.h` 1本へまとめます。`init`は設定ファイルが
-既にある場合は上書きしません。`[general] output_mode = split`で画像別headerへ切り替えられます。
+`path`がファイルなら1枚を変換します。`init MySketch`は`MySketch/images/.imagesconfig`を作り、
+`build MySketch`と`inspect MySketch`はこのcanonical projectを自動検出します。元画像は`images/`へ置き、
+既定で親の`MySketch/images.h` 1本へまとめます。`build MySketch/images`も同じです。`init`は既存設定を
+上書きしません。`[general] output_mode = split`で画像別headerへ切り替えられます。
+
+旧来のdirectory直下に`.imagesconfig`がある場合は、そちらを優先して直接projectとして読み込みます。
 
 ## 共通オプション
 
@@ -63,14 +66,39 @@ RGB565の丸め、palette減色、1bpp化、透過を含みます。`comparison`
 補助scriptだけで使い、preview出力には使いません。P6 PPMはheaderに続けて無圧縮RGB byteを
 並べるalphaなしの形式で、目視確認や配布にはPNGのほうが適しています。
 CLIで指定する相対`--out`と`--preview`は、単一画像・directoryのどちらもcurrent working
-directory基準です。`.imagesconfig`内の相対pathはproject root基準です。
+directory基準です。`.imagesconfig`内の相対pathは設定がある`images/`基準です。
+
+## Project構成と出力先
+
+```text
+MySketch/
+├── MySketch.ino
+├── images.h
+└── images/
+    ├── .imagesconfig
+    ├── icon.png
+    └── .gfx-image-tool/
+        └── headers.json
+```
+
+既定設定は`output_dir = ..`です。`EmbedAssetToolJs`と同様に、出力directoryとheader名を変更できます。
+
+```ini
+[general]
+output_dir = ../src/generated
+output_file = artwork.h
+output_mode = bundle
+```
+
+この例は`MySketch/src/generated/artwork.h`を生成します。一時的に出力directoryだけを変える場合は
+`gfx-image-tool build MySketch --out ./temporary`のように指定します。CLI optionは設定より優先されます。
 
 ## TinyGFX project
 
 ```ini
 [general]
 target = tinygfx
-output_dir = generated
+output_dir = ..
 output_mode = bundle
 output_file = images.h
 
@@ -85,7 +113,7 @@ threshold = 128
 color = auto
 
 [preview]
-output_dir = previews
+output_dir = .gfx-image-tool/previews
 layout = both
 
 [optimize]
@@ -118,8 +146,8 @@ TinyGFXの`auto`では、最終的な抜き色またはbitmap背景として保�
 
 ## 孤立した生成物
 
-directory buildは出力先へ`.gfx-image-tool-headers.json`、preview先へ
-`.gfx-image-tool-previews.json`を生成し、前回生成したファイル集合を記録します。元画像を
+canonical projectはheader追跡情報を`images/.gfx-image-tool/headers.json`へ、preview追跡情報を
+preview先の`.gfx-image-tool-previews.json`へ生成し、前回生成したファイル集合を記録します。元画像を
 削除した場合、通常buildはmanifestに記録された孤立header/PNGだけを削除し、JSON reportでは
 `removed`とします。`--check`はファイルを変更せず`stale`として報告し、終了コード2を返します。
 

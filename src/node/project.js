@@ -1,6 +1,6 @@
 // @ts-check
 import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
-import { dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
+import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import { decodeImageFile } from './decode.js';
 import { IMAGES_CONFIG_TEMPLATE, parseImagesConfig, resolveImageConfig } from './config.js';
 import { buildGlobMatcher, buildImagesIgnoreMatcher } from './ignore.js';
@@ -15,6 +15,35 @@ import { HEADER_MANIFEST, planGeneratedOutputs } from './manifest.js';
 /** @typedef {{relative: string, absolute: string}} ImageEntry */
 /** @typedef {{entry: ImageEntry, effective: ReturnType<typeof resolveImageConfig>, original: import('../model/image.js').GfxImage, image: import('../model/image.js').GfxImage, symbol: string, output: string}} PreparedImage */
 /** @typedef {{input: string, relative: string, output: string, symbol: string, target: string, format: string, source: string, original: import('../model/image.js').GfxImage, prepared: import('../model/image.js').GfxImage, encoded: import('../format/registry.js').EncodedImage, dataBytes: number, paletteBytes: number}} BuiltImage */
+
+export const IMAGE_PROJECT_DIR = 'images';
+export const IMAGE_PROJECT_STATE_DIR = '.gfx-image-tool';
+
+/** @param {string} name */
+export function isImageProjectDirectoryName(name) {
+  return String(name || '').toLowerCase() === IMAGE_PROJECT_DIR;
+}
+
+/** @param {string} path */
+async function isFile(path) {
+  try { return (await stat(path)).isFile(); }
+  catch (error) {
+    if (/** @type {NodeJS.ErrnoException} */ (error).code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
+/**
+ * Resolve a sketch directory to its images/ project. A direct .imagesconfig always wins so old
+ * projects remain unambiguous; passing images/ itself also works.
+ * @param {string} directory
+ */
+export async function resolveImageProjectDirectory(directory) {
+  const root = resolve(directory);
+  if (isImageProjectDirectoryName(basename(root)) || await isFile(join(root, '.imagesconfig'))) return root;
+  const nested = join(root, IMAGE_PROJECT_DIR);
+  return await isFile(join(nested, '.imagesconfig')) ? nested : root;
+}
 
 /** @param {string} path */
 async function optionalText(path) {
@@ -42,7 +71,7 @@ export async function collectImageEntries(root, config) {
       const absolute = join(directory, child.name);
       const portable = (prefix ? `${prefix}/${child.name}` : child.name).replaceAll('\\', '/');
       if (child.isDirectory()) {
-        if (resolve(absolute) === outputRoot || resolve(absolute) === previewRoot || ignore.shouldIgnore(portable, true)) continue;
+        if (child.name === IMAGE_PROJECT_STATE_DIR || resolve(absolute) === outputRoot || resolve(absolute) === previewRoot || ignore.shouldIgnore(portable, true)) continue;
         await visit(absolute, portable);
       } else if (child.isFile() && !ignore.shouldIgnore(portable, false) && matchInput(portable)) {
         entries.push({ relative: portable, absolute });
@@ -83,7 +112,9 @@ export async function buildImageProject(projectDir, options = {}) {
   const root = resolve(projectDir);
   const info = await stat(root);
   if (!info.isDirectory()) throw new Error(`Not a directory: ${root}`);
-  const config = parseImagesConfig(await optionalText(join(root, '.imagesconfig')));
+  const configText = await optionalText(join(root, '.imagesconfig'));
+  const config = parseImagesConfig(configText);
+  if (!configText && isImageProjectDirectoryName(basename(root))) config.general.outputDir = '..';
   if (options.outputDir !== undefined) config.general.outputDir = options.outputDir;
   if (options.previewDir !== undefined) config.preview.outputDir = options.previewDir;
   if (options.previewLayout !== undefined) config.preview.layout = options.previewLayout;
@@ -253,7 +284,15 @@ export async function writeImageProject(projectDir, options = {}) {
   const outputs = built.bundle
     ? [{ path: built.bundle.output, content: built.bundle.source }]
     : [...built.images.map((image) => ({ path: image.output, content: image.source })), ...(built.index ? [{ path: built.index.output, content: built.index.source }] : [])];
-  const generation = await planGeneratedOutputs(built.outputRoot, HEADER_MANIFEST, 'headers', outputs.map((output) => output.path));
+  const canonicalProject = isImageProjectDirectoryName(basename(built.root));
+  const manifestPath = canonicalProject ? join(built.root, IMAGE_PROJECT_STATE_DIR, 'headers.json') : undefined;
+  const generation = await planGeneratedOutputs(
+    built.outputRoot,
+    HEADER_MANIFEST,
+    'headers',
+    outputs.map((output) => output.path),
+    manifestPath ? { manifestPath } : undefined,
+  );
   /** @type {{path: string, status: 'written'|'upToDate'|'mismatch'|'missingOutput'}[]} */
   const results = [];
   for (const output of outputs) {
@@ -304,7 +343,8 @@ export async function writeImageProject(projectDir, options = {}) {
 
 /** @param {string} projectDir */
 export async function createImagesConfig(projectDir) {
-  const root = resolve(projectDir);
+  const requested = resolve(projectDir);
+  const root = isImageProjectDirectoryName(basename(requested)) ? requested : join(requested, IMAGE_PROJECT_DIR);
   await mkdir(root, { recursive: true });
   const path = join(root, '.imagesconfig');
   try {

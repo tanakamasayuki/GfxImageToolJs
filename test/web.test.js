@@ -33,6 +33,10 @@ test('web workspace exposes project inputs and core-only module entry', async ()
   assert.match(app, /existing\.sourceBytes = sourceBytes/);
   assert.match(app, /entries\.push\(\{ name: zipSourceName\(item\), data: item\.sourceBytes \}\)/);
   assert.match(app, /readStoredZip/);
+  assert.match(app, /images\/\.imagesconfig/);
+  assert.match(app, /output_dir = \.\./);
+  assert.match(app, /images\/\.gfx-image-tool\/headers\.json/);
+  assert.doesNotMatch(app, /entries\.push\(\{ name: `previews\//);
   assert.match(app, /delete item\.override/);
   assert.match(app, /sourceKey: 'source_key'/);
   assert.match(app, /file\.name\.endsWith\('\.imagesconfig'\)/);
@@ -50,17 +54,17 @@ test('browser folder paths are relative to the dropped .imagesconfig root', () =
 
 test('browser ZIP writer is deterministic and emits valid stored-file records', () => {
   assert.equal(crc32(new TextEncoder().encode('123456789')), 0xcbf43926);
-  const entries = [{ name: 'generated/images.h', data: 'header\n' }, { name: '.imagesconfig', data: new Uint8Array([1, 2, 3]) }];
+  const entries = [{ name: 'images.h', data: 'header\n' }, { name: 'images/.imagesconfig', data: new Uint8Array([1, 2, 3]) }];
   const first = createStoredZip(entries);
   const second = createStoredZip(entries);
   assert.deepEqual(first, second);
   const view = new DataView(first.buffer, first.byteOffset, first.byteLength);
   assert.equal(view.getUint32(0, true), 0x04034b50);
   assert.equal(view.getUint32(first.length - 22, true), 0x06054b50);
-  assert.match(new TextDecoder().decode(first), /generated\/images\.h/);
+  assert.match(new TextDecoder().decode(first), /images\/.imagesconfig/);
   assert.throws(() => createStoredZip([{ name: '../outside', data: '' }]), /Unsafe ZIP entry/);
   assert.deepEqual(readStoredZip(first).map((entry) => [entry.name, [...entry.data]]), [
-    ['generated/images.h', [...new TextEncoder().encode('header\n')]],
-    ['.imagesconfig', [1, 2, 3]],
+    ['images.h', [...new TextEncoder().encode('header\n')]],
+    ['images/.imagesconfig', [1, 2, 3]],
   ]);
 });

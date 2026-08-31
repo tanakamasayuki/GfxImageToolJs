@@ -12,6 +12,7 @@ import {
   createImagesConfig,
   parseImagesConfig,
   resolveImageConfig,
+  resolveImageProjectDirectory,
   writeImageProject,
 } from '../src/node/index.js';
 
@@ -110,12 +111,24 @@ test('project input scan excludes configured generated and preview directories',
   await mkdir(join(root, 'images'));
   await mkdir(join(root, 'generated'));
   await mkdir(join(root, 'previews'));
+  await mkdir(join(root, '.gfx-image-tool'));
   await png(join(root, 'images', 'source.png'), ['#ff0000']);
   await png(join(root, 'generated', 'stale.png'), ['#00ff00']);
   await png(join(root, 'previews', 'source.png'), ['#0000ff']);
+  await png(join(root, '.gfx-image-tool', 'diagnostic.png'), ['#ffffff']);
   const config = parseImagesConfig('[general]\noutput_dir = generated\n[preview]\noutput_dir = previews\n');
   const entries = await collectImageEntries(root, config);
   assert.deepEqual(entries.map((entry) => entry.relative), ['images/source.png']);
+});
+
+test('sketch resolution prefers legacy direct config, then canonical images config', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'gfx-image-resolve-'));
+  await mkdir(join(root, 'images'));
+  await writeFile(join(root, 'images', '.imagesconfig'), '[general]\noutput_dir = ..\n');
+  assert.equal(await resolveImageProjectDirectory(root), join(root, 'images'));
+  await writeFile(join(root, '.imagesconfig'), '[general]\noutput_dir = generated\n');
+  assert.equal(await resolveImageProjectDirectory(root), root);
+  assert.equal(await resolveImageProjectDirectory(join(root, 'images')), join(root, 'images'));
 });
 
 test('project writes one header per image and check is read-only', async () => {
@@ -190,6 +203,8 @@ test('init never overwrites an existing config', async () => {
   const original = await readFile(first.path, 'utf8');
   const second = await createImagesConfig(root);
   assert.equal(first.status, 'created');
+  assert.equal(first.path, join(root, 'images', '.imagesconfig'));
+  assert.match(original, /output_dir = \.\./);
   assert.equal(second.status, 'exists');
   assert.equal(await readFile(first.path, 'utf8'), original);
 });

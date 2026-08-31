@@ -28,14 +28,14 @@ New to palettes, RGB565, dithering, or color keys? Start with the
 Open the [web app](https://tanakamasayuki.github.io/GfxImageToolJs/), add one or more images, select
 the target graphics library, compare original and converted previews, and download:
 
-- one rebuildable project ZIP containing original images under `images/`, the bundled `.h`,
-  configuration, report, and previews;
+- one rebuildable project ZIP with `images.h` at its root and originals, configuration, and tool
+  state contained under `images/`;
 - the bundled project `.h` or selected image header separately;
 - converted and side-by-side comparison PNGs;
 - `.imagesconfig` for CLI reproduction.
 
-The web app can reopen its own project ZIP. Inside the archive, `generated/` and `previews/` are
-configured output directories and are excluded from subsequent input scans.
+The web app can reopen its own project ZIP. Reports and preview PNGs are not mixed into the default
+project archive; save converted or comparison PNGs separately from the selected-image panel when needed.
 
 Project defaults and per-image overrides are supported. TinyGFX images are optimized as a set. For
 opaque artwork, the per-image eyedropper can turn an exact source color into transparency; the same
@@ -54,22 +54,24 @@ gfx-image-tool build icon.png --target tinygfx --out icon.h
 For a reproducible directory project:
 
 ```sh
-gfx-image-tool init ./images
-gfx-image-tool build ./images
-gfx-image-tool build ./images --check
+gfx-image-tool init ./MySketch
+# Put original images in ./MySketch/images/
+gfx-image-tool build ./MySketch
+gfx-image-tool build ./MySketch --check
 ```
 
-Directory projects bundle their images into `generated/images.h` by default. Set
-`output_mode = split` in `.imagesconfig` for per-image headers. Relative CLI `--out` and `--preview`
-paths use the current working directory; relative configuration paths use the project root.
+New projects keep `.imagesconfig` in `MySketch/images/` and bundle every image into
+`MySketch/images.h`. Change `output_dir` and `output_file` in the configuration to place output
+elsewhere, or set `output_mode = split` for per-image headers. Relative CLI `--out` and `--preview`
+paths use the current working directory; relative configuration paths use the containing `images/` directory.
 
 ```sh
-gfx-image-tool build ./images --target tinygfx \
+gfx-image-tool build ./MySketch --target tinygfx \
   --preview ./previews --preview-layout both
 ```
 
-Generated manifests track header and preview output. Commit those hidden manifest files with
-generated assets so `--check` can detect sources that were removed.
+The canonical layout keeps the header manifest at `images/.gfx-image-tool/headers.json`. Commit it
+with generated assets so `--check` can detect sources that were removed.
 
 ## Formats and targets
 

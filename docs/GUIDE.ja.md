@@ -65,27 +65,31 @@ displayの製品名を選ぶ欄ではありません。
 2. 使用する描画ライブラリを「出力先ライブラリ」で選びます。
 3. 「色の扱い」は「自動」、画素データ形式は最初に表示された推奨値から始めます。
 4. 変換後previewで、色、輪郭、透明部分を確認します。
-5. 「プロジェクトZIPをdownload」で元画像、header、設定、report、previewをまとめて保存します。
+5. 「プロジェクトZIPをdownload」で元画像、header、設定を再生成可能な構成で保存します。
 6. 個別に必要ならproject `.h`や`.imagesconfig`もdownloadできます。
 
 既存の`.imagesconfig`は画像と一緒でも、画像より先でもdropできます。画像別sectionは、対応する
 ファイル名の画像を後から追加した場合にも適用されます。
-Web版からdownloadしたproject ZIPをそのままdropして開き直すこともできます。`.imagesconfig`と
-`images/`内の元画像だけを復元し、生成物やpreviewを入力画像として追加しません。
+Web版からdownloadしたproject ZIPをそのままdropして開き直すこともできます。
+`images/.imagesconfig`と`images/`内の元画像だけを復元し、生成headerやtool管理情報を入力画像として
+追加しません。
 
 展開後に用途がわかるよう、ZIPは次の構成です。
 
 ```text
 gfx-image-project/
-  .imagesconfig
-  images/          変換元画像
-  generated/       生成したC/C++ header
-  previews/        変換後／左右比較PNG
-  report.json
+  images.h         firmwareからincludeする生成header
+  images/
+    .imagesconfig  変換設定
+    icon.png       変換元画像
+    ui/splash.png
+    .gfx-image-tool/
+      headers.json 生成物の追跡情報
 ```
 
-CLIは設定された`generated/`と`previews/`を入力走査から除外するため、`gfx-image-tool build .`で
-自分の生成物を再変換することはありません。
+スケッチ直下へ増えるのは通常`images.h`だけです。元画像、設定、tool管理情報は`images/`内にまとまり、
+`.gfx-image-tool/`は常に入力走査から除外されます。reportとpreview PNGはWeb画面または個別downloadで
+確認し、既定のproject ZIPには入れません。
 
 複数画像を同時に入れて構いません。特にTinyGFXでは、画像をまとめて評価したほうが、
 プログラム全体で必要なデコーダを減らせる場合があります。
@@ -176,13 +180,23 @@ Web版は設定を試す作業に向いています。元画像の更新、チ�
 
 ```sh
 npm install --global gfx-image-tool
-gfx-image-tool init ./images
-gfx-image-tool build ./images --target tinygfx
-gfx-image-tool build ./images --check
+gfx-image-tool init ./MySketch
+# ./MySketch/images/へ画像を置く
+gfx-image-tool build ./MySketch --target tinygfx
+gfx-image-tool build ./MySketch --check
 ```
 
-`init`が作る`.imagesconfig`へ設定を保存します。ディレクトリbuildは既定で全画像を
-`generated/images.h`へまとめます。`--check`はファイルを書き換えず、生成物が最新か検査します。
+`init`は`MySketch/images/.imagesconfig`を作り、既定で全画像を`MySketch/images.h`へまとめます。
+`build ./MySketch/images`と直接指定しても同じです。`--check`はファイルを書き換えず、生成物が最新か
+検査します。
+
+出力先は`.imagesconfig`から変更できます。pathは`images/`基準です。
+
+```ini
+[general]
+output_dir = ../src/generated
+output_file = artwork.h
+```
 
 変換後と左右比較のPNGも一緒に残す例です。
 
@@ -191,7 +205,7 @@ gfx-image-tool build ./images --check
 target = tinygfx
 
 [preview]
-output_dir = previews
+output_dir = .gfx-image-tool/previews
 layout = both
 ```
 
@@ -204,7 +218,7 @@ layout = both
 
 ```cpp
 #include <TinyGFX/Image.h>
-#include "generated/images.h"
+#include "images.h"
 
 lcd.drawImage(&img_iconRef, 10, 10);
 ```

@@ -154,7 +154,7 @@ and transparency in both preview and target rendering.
 
 ## Bundle versus split
 
-A directory build emits one `generated/images.h` bundle by default. It simplifies inclusion, checks
+A new project bundles every input under `images/` into one `images.h` beside that directory. It simplifies inclusion, checks
 symbol collisions across the project, and keeps generated output easy to manage. With common
 `-fdata-sections` and `--gc-sections` settings, the linker can remove unreferenced data sections.
 
@@ -169,14 +169,15 @@ exported by the browser can be imported by the CLI. Inputs are stably sorted by 
 generated output omits timestamps and absolute paths.
 
 ```sh
-gfx-image-tool build ./images
-gfx-image-tool build ./images --check
+gfx-image-tool build ./MySketch
+gfx-image-tool build ./MySketch --check
 ```
 
-`--check` is read-only and exits 2 for missing, different, or stale output. The output manifests
-`.gfx-image-tool-headers.json` and `.gfx-image-tool-previews.json` track only files previously made
-by this tool. A normal build removes manifest-tracked orphans and never removes an untracked user
-file.
+The new `.imagesconfig` lives in `MySketch/images/` and defaults to `output_dir = ..`; both
+`output_dir` and `output_file` may point elsewhere. `--check` is read-only and exits 2 for missing,
+different, or stale output. `images/.gfx-image-tool/headers.json` tracks headers, while preview
+outputs retain their own manifest. A normal build removes manifest-tracked orphans and never removes
+an untracked user file. Root-level legacy `.imagesconfig` projects remain readable.
 
 Without a manifest, old output cannot safely be identified as stale. Commit these dotfiles whenever
 generated assets are committed.
@@ -195,7 +196,7 @@ TinyGFX's host oracle performs the authoritative pixel-exact check for all five 
 
 ```sh
 npm ci
-gfx-image-tool build assets --check
+gfx-image-tool build MySketch --check
 ```
 
 Exit status 2 means generated output is not current, 3 means invalid options or configuration, and

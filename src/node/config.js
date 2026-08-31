@@ -205,7 +205,8 @@ export function resolveImageConfig(config, relativePath) {
 export const IMAGES_CONFIG_TEMPLATE = `# gfx-image-tool project configuration
 
 [general]
-output_dir = generated
+# Paths are relative to this images/ directory. The default writes images.h beside images/.
+output_dir = ..
 output_mode = bundle
 output_file = images.h
 prefix =
@@ -231,7 +232,7 @@ color = auto
 # source_key = FF00FF
 
 [preview]
-# output_dir = previews
+# output_dir = .gfx-image-tool/previews
 layout = converted
 
 [csource]

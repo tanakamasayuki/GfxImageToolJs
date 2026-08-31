@@ -299,14 +299,19 @@ async function addFiles(files) {
     if (!archive) return;
     try {
       setStatus(t('status.openingZip', { name: archive.name }));
-      const entries = readStoredZip(new Uint8Array(await archive.arrayBuffer()))
-        .filter((entry) => entry.name === '.imagesconfig' || entry.name.startsWith('images/'));
-      if (!entries.some((entry) => entry.name === '.imagesconfig') || !entries.some((entry) => entry.name.startsWith('images/'))) {
+      const archiveEntries = readStoredZip(new Uint8Array(await archive.arrayBuffer()));
+      const configEntry = archiveEntries.find((entry) => entry.name === 'images/.imagesconfig')
+        ?? archiveEntries.find((entry) => entry.name === '.imagesconfig');
+      const sourceEntries = archiveEntries.filter((entry) => entry.name.startsWith('images/')
+        && !entry.name.startsWith('images/.gfx-image-tool/')
+        && /\.(png|jpe?g|gif|bmp|webp)$/i.test(entry.name));
+      if (!configEntry || !sourceEntries.length) {
         throw new Error(t('status.invalidProjectZip'));
       }
+      const entries = [configEntry, ...sourceEntries];
       const projectFiles = entries.map((entry) => {
         const name = entry.name.split('/').at(-1) || entry.name;
-        const type = entry.name === '.imagesconfig' ? 'text/plain' : imageMime(name);
+        const type = entry.name.endsWith('.imagesconfig') ? 'text/plain' : imageMime(name);
         const copy = new Uint8Array(entry.data.length); copy.set(entry.data);
         const file = new File([copy.buffer], name, { type });
         virtualPaths.set(file, entry.name);
@@ -612,36 +617,25 @@ function downloadPng(image, name) {
   canvas.toBlob((blob) => { if (blob) download(blob, name, 'image/png'); }, 'image/png');
 }
 
-/** @param {import('../src/model/image.js').GfxImage} image @returns {Promise<Uint8Array>} */
-function pngBytes(image) {
-  return new Promise((resolve, reject) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = image.width; canvas.height = image.height;
-    canvas.getContext('2d')?.putImageData(new ImageData(new Uint8ClampedArray(image.pixels), image.width, image.height), 0, 0);
-    canvas.toBlob(async (blob) => {
-      if (!blob) { reject(new Error('PNG encoding failed.')); return; }
-      resolve(new Uint8Array(await blob.arrayBuffer()));
-    }, 'image/png');
-  });
-}
-
 function projectTextFiles() {
+  const outputFile = settings.outputFile;
+  const manifest = `${JSON.stringify({ version: 1, kind: 'headers', files: [outputFile] }, null, 2)}\n`;
   return new Map([
-    ['README.txt', projectReadme()],
-    [`generated/${settings.outputFile}`, computed?.header ?? ''],
-    ['.imagesconfig', serializeConfig('images/')],
-    ['report.json', computed ? `${JSON.stringify(computed.report, null, 2)}\n` : ''],
+    [outputFile, computed?.header ?? ''],
+    ['images/README.txt', projectReadme()],
+    ['images/.imagesconfig', serializeConfig()],
+    ['images/.gfx-image-tool/headers.json', manifest],
   ]);
 }
 
 function projectReadme() {
   return `Gfx Image Tool project / Gfx Image Tool プロジェクト
 
-The original images are stored under images/. Generated files are under generated/,
-and visual checks are under previews/. From the project root, rebuild or verify with:
+Put original images and .imagesconfig under images/. The generated header is written beside
+images/ by default. From the project root, rebuild or verify with:
 
-元画像は images/、生成物は generated/、確認画像は previews/ にあります。
-project rootで再生成・検査できます:
+元画像と.imagesconfigはimages/に置きます。生成headerは既定でimages/の隣へ出力します。
+project rootから再生成・検査できます:
 
   gfx-image-tool build .
   gfx-image-tool build . --check
@@ -650,12 +644,6 @@ project rootで再生成・検査できます:
 
 /** @param {WorkspaceImage} item */
 function zipSourceName(item) { return `images/${item.name.replace(/^images\//, '')}`; }
-
-/** @param {number} index @param {WorkspaceImage} item */
-function previewStem(index, item) {
-  const safe = stem(item.name).replace(/[^A-Za-z0-9._-]+/g, '_') || 'image';
-  return `${String(index + 1).padStart(2, '0')}-${safe}`;
-}
 
 function renderExport() {
   const tree = $('export-tree'); tree.textContent = '';
@@ -673,23 +661,16 @@ function renderExport() {
     li.append(button); tree.append(li);
   };
   folder('gfx-image-project.zip', 0);
-  file('README.txt', 'README.txt', 1, textFiles.get('README.txt') ?? '');
-  file('.imagesconfig', '.imagesconfig', 1, textFiles.get('.imagesconfig') ?? '');
-  file('report.json', 'report.json', 1, textFiles.get('report.json') ?? '');
+  file(settings.outputFile, settings.outputFile, 1, textFiles.get(settings.outputFile) ?? '');
   folder('images/', 1);
+  file('images/README.txt', 'README.txt', 2, textFiles.get('images/README.txt') ?? '');
+  file('images/.imagesconfig', '.imagesconfig', 2, textFiles.get('images/.imagesconfig') ?? '');
   for (const item of images) file(zipSourceName(item), zipSourceName(item).slice('images/'.length), 2, t('export.sourcePreview', {
     type: item.sourceType || t('export.unknownType'), width: item.image.width, height: item.image.height,
   }));
-  folder('generated/', 1);
-  file(`generated/${settings.outputFile}`, settings.outputFile, 2, textFiles.get(`generated/${settings.outputFile}`) ?? '');
-  folder('previews/', 1);
-  for (const [index, result] of (computed?.images ?? []).entries()) {
-    const name = previewStem(index, result.item);
-    const description = t('export.pngPreview', { width: result.encoded.width, height: result.encoded.height });
-    file(`previews/${name}.png`, `${name}.png`, 2, description);
-    file(`previews/${name}.comparison.png`, `${name}.comparison.png`, 2, t('export.comparisonPreview', { width: result.encoded.width * 2, height: result.encoded.height }));
-  }
-  if (!selectedExportPath || !available.has(selectedExportPath)) selectedExportPath = `generated/${settings.outputFile}`;
+  folder('.gfx-image-tool/', 2);
+  file('images/.gfx-image-tool/headers.json', 'headers.json', 3, textFiles.get('images/.gfx-image-tool/headers.json') ?? '');
+  if (!selectedExportPath || !available.has(selectedExportPath)) selectedExportPath = settings.outputFile;
   const source = available.get(selectedExportPath) ?? '';
   $('export-preview-title').textContent = `${t('export.preview')}: ${selectedExportPath}`;
   const lines = source.split('\n');
@@ -702,31 +683,24 @@ async function projectZip() {
   /** @type {{name: string, data: Uint8Array|string}[]} */
   const entries = [...projectTextFiles()].map(([name, data]) => ({ name, data }));
   for (const item of images) entries.push({ name: zipSourceName(item), data: item.sourceBytes });
-  for (const [index, result] of computed.images.entries()) {
-    const name = previewStem(index, result.item);
-    const converted = decodeEncodedImage(result.encoded, { target: settings.target });
-    entries.push({ name: `previews/${name}.png`, data: /** @type {Uint8Array} */ (await pngBytes(converted)) });
-    entries.push({ name: `previews/${name}.comparison.png`, data: /** @type {Uint8Array} */ (await pngBytes(compareImages(result.item.image, converted))) });
-  }
   return createStoredZip(entries);
 }
 
-/** @param {string} [imageRoot] */
-function serializeConfig(imageRoot = '') {
+function serializeConfig() {
   const lines = [
-    '# Generated by Gfx Image Tool web workspace', '[general]', 'output_dir = generated',
+    '# Generated by Gfx Image Tool web workspace', '[general]', '# Relative to this images/ directory', 'output_dir = ..',
     'output_mode = bundle', `output_file = ${settings.outputFile}`, `prefix = ${settings.prefix}`, `target = ${settings.target}`, '',
     '[color]', `format = ${settings.format}`, `mode = ${settings.mode}`, `colors = ${settings.colors}`,
     `dither = ${settings.dither}`, `threshold = ${settings.threshold}`, 'invert = false', '',
     '[alpha]', `mode = ${settings.alphaMode}`, 'matte = 000000', `threshold = ${settings.alphaThreshold}`, `color = ${settings.alphaColor}`, '',
-    '[preview]', 'output_dir = previews', 'layout = both', '',
+    '[preview]', '# output_dir = .gfx-image-tool/previews', 'layout = converted', '',
     '[csource]', 'storage = PROGMEM', 'align = 4', 'static = true', '',
     '[optimize]', `decoder_cost = ${settings.decoderCost}`, `prefer_bitmap = ${settings.preferBitmap}`, `aligned_vblit = ${settings.alignedVblit}`, '',
   ];
   for (const item of images) {
     const entries = Object.entries(item.override).filter(([, value]) => value !== undefined && value !== '');
     if (!entries.length) continue;
-    const projectName = imageRoot ? `${imageRoot}${item.name.replace(/^images\//, '')}` : item.name;
+    const projectName = item.name.replace(/^images\//, '');
     lines.push(`[image "${projectName.replaceAll('"', '_')}"]`);
     const configKeys = { alphaMode: 'alpha_mode', alphaThreshold: 'alpha_threshold', alphaColor: 'alpha_color', sourceKey: 'source_key' };
     for (const [key, value] of entries) lines.push(`${configKeys[/** @type {keyof typeof configKeys} */ (key)] ?? key} = ${value}`);

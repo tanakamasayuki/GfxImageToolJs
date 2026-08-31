@@ -26,13 +26,13 @@ Gfx Image Toolは、実際の変換後画素をpreviewし、互換性のあるta
 [Web版](https://tanakamasayuki.github.io/GfxImageToolJs/)を開き、1枚以上の画像を追加してtargetの
 描画libraryを選びます。原画と変換後を比較して、次をdownloadできます。
 
-- `images/`配下の元画像、まとめた`.h`、設定、report、previewを収録した再生成可能なproject ZIP
+- rootの`images.h`と、`images/`配下に元画像・設定・管理情報をまとめた再生成可能なproject ZIP
 - projectの`.h`または選択画像のheader単体
 - 変換後PNGと左右比較PNG
 - CLIで再現するための`.imagesconfig`
 
-Web版は自身が出力したproject ZIPを再度開けます。archive内の`generated/`と`previews/`は設定済みの
-出力directoryなので、次回の入力走査から除外されます。
+Web版は自身が出力したproject ZIPを再度開けます。既定ZIPへreportやpreview PNGは混ぜず、必要なら
+選択画像panelから変換後PNG／左右比較PNGを個別に保存します。
 
 project共通設定と画像別overrideに対応し、TinyGFXでは複数画像を集合として最適化します。不透明な
 素材は画像別スポイトで元色を透明化でき、`.imagesconfig`の`source_key = RRGGBB`でも再現できます。
@@ -50,22 +50,24 @@ gfx-image-tool build icon.png --target tinygfx --out icon.h
 directory projectを再現可能に管理する例:
 
 ```sh
-gfx-image-tool init ./images
-gfx-image-tool build ./images
-gfx-image-tool build ./images --check
+gfx-image-tool init ./MySketch
+# 元画像を ./MySketch/images/ へ置く
+gfx-image-tool build ./MySketch
+gfx-image-tool build ./MySketch --check
 ```
 
-directoryは既定で全画像を`generated/images.h`へまとめます。画像別headerが必要な場合は
-`.imagesconfig`で`output_mode = split`を指定します。CLIの相対`--out`と`--preview`はcurrent
-working directory基準、設定内の相対pathはproject root基準です。
+新規projectは`MySketch/images/.imagesconfig`を作り、全画像を`MySketch/images.h`へまとめます。
+生成先は設定の`output_dir`と`output_file`で変更でき、画像別headerが必要な場合は
+`output_mode = split`を指定します。CLIの相対`--out`と`--preview`はcurrent working directory基準、
+設定内の相対pathは`.imagesconfig`がある`images/`基準です。
 
 ```sh
-gfx-image-tool build ./images --target tinygfx \
+gfx-image-tool build ./MySketch --target tinygfx \
   --preview ./previews --preview-layout both
 ```
 
-生成manifestがheaderとpreviewを追跡します。削除された元画像も`--check`で検出できるよう、hidden
-manifestを生成物と一緒にcommitしてください。
+新構成ではheader生成manifestを`images/.gfx-image-tool/headers.json`へまとめます。削除された元画像も
+`--check`で検出できるよう、manifestを生成物と一緒にcommitしてください。
 
 ## 形式とTarget
 
