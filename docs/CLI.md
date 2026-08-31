@@ -1,5 +1,10 @@
 # CLI reference
 
+English | [日本語](CLI.ja.md)
+
+See the [getting-started guide](GUIDE.md) for concepts and the [advanced guide](ADVANCED.md) for
+format and TinyGFX optimization details. This document is the command and configuration reference.
+
 ## Commands
 
 ```text
@@ -12,10 +17,31 @@ A file path converts one image. A directory path recursively builds a project co
 `.imagesconfig`. Directory builds emit one bundled `generated/images.h` by default; set
 `[general] output_mode = split` for per-image headers. `init` never overwrites an existing configuration.
 
-Common options include `--out`, `--preview`, `--preview-layout`, `--target`, `--format`, `--name`, `--prefix`, `--threshold`,
-`--alpha-threshold`, `--dither`, `--colors`, `--matte`, `--check`, and `--json`.
-Check mode is read-only and exits with status 2 for missing or different output. Invalid command
-arguments exit with status 3.
+## Common options
+
+| Option | Meaning |
+| --- | --- |
+| `--out <path>` | Single-image header, or project output directory |
+| `--preview <path>` | Single-image converted PNG, or project preview directory |
+| `--preview-layout <id>` | `converted` (default), side-by-side `comparison`, or `both` |
+| `--target <id>` | C output target; use `tinygfx` for TinyGFX |
+| `--format <id>` | Force a format; TinyGFX defaults to `auto` |
+| `--mode <mode>` | `auto`, `monochrome`, `grayscale`, `indexed`, or `true-color` |
+| `--name <id>` | C symbol for a single image |
+| `--prefix <id>` | Prefix for all project symbols |
+| `--threshold <0..255>` | Luminance threshold for 1bpp |
+| `--alpha-threshold <0..255>` | Threshold for classifying transparent alpha |
+| `--transparent-color <RRGGBB\|auto>` | TinyGFX color key; defaults to automatic selection |
+| `--dither <mode>` | `none`, `floyd-steinberg`, or `bayer2/4/8` |
+| `--colors <2..256>` | Maximum `indexed8` palette size |
+| `--matte <RRGGBB>` | Color onto which alpha is composited |
+| `--check` | Do not write; exit 2 for missing, different, or stale output |
+| `--json` | Write a machine-readable report to stdout |
+
+For TinyGFX, `--decoder-cost <N>` changes the fixed cost per format, `--prefer-bitmap h|v`
+resolves equal-size 1bpp candidates, and `--monochrome` admits thresholded 1bpp candidates for
+images with more than two colors. `--aligned-vblit` prefers vertical 1bpp and reports the measured
+fast-path comparison separately.
 
 `--preview <path>` writes pixels decoded from the generated asset. Use
 `--preview-layout comparison` to place the source on the left and converted pixels on the right, or
@@ -29,10 +55,7 @@ Preview output is always PNG. PPM is used only by the legacy binary-P6 oracle im
 ## TinyGFX
 
 Use `--target tinygfx`; its default format is `auto`. The candidates are `raw565`, `rle565`,
-`rlepal4`, `bitmap1h`, and `bitmap1v`. `--decoder-cost <N>` changes the fixed per-format cost,
-`--prefer-bitmap h|v` resolves equal-size bitmap candidates, and `--monochrome` enables thresholded
-1bpp candidates for images with more than two colors. `--aligned-vblit` prefers the vertical layout
-and reports its measured fast-path cost separately from the optimizer total.
+`rlepal4`, `bitmap1h`, and `bitmap1v`.
 
 For projects, set `[alpha] mode = color-key` and `threshold = 128` to preserve source alpha as a
 collision-free TinyGFX transparent color or palette index. Set `[optimize] decoder_cost = 400` and
@@ -55,6 +78,21 @@ files could not be detected during that manifest-less run.
 The JSON `optimization` object reports the selected format set, image data plus palette bytes,
 decoder bytes, and total bytes.
 
+## Exit status
+
+| Status | Meaning |
+| ---: | --- |
+| 0 | Success, including a matching `--check` |
+| 1 | Input/output, decoding, or conversion failure |
+| 2 | Missing, different, or stale generated output under `--check` |
+| 3 | Invalid command, option, or configuration |
+
 For cross-project validation, `scripts/prepare-tinygfx-oracle.js` converts TinyGFX's post-conversion
 P6 PPM fixtures into headers for all five formats. Run TinyGFX's `tests/image_oracle` host profile
 against the resulting pairs for a pixel-exact check using TinyGFX's own decoders.
+
+## Related documentation
+
+- [Getting-started guide](GUIDE.md)
+- [Advanced guide](ADVANCED.md)
+- [README](../README.md)

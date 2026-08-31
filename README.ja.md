@@ -1,137 +1,95 @@
 # Gfx Image Tool
 
-画像を組込み向けの画素配列と C/C++ ヘッダーへ変換する JavaScript ライブラリ＋CLIです。
-Phase 3まで実装済みです。詳細は[仕様](docs/spec.ja.md)と
-[CLIリファレンス](docs/CLI.ja.md)を参照してください。
+[English](README.md) | 日本語
 
-## 必要環境
+**ブラウザですぐ試す:** <https://tanakamasayuki.github.io/GfxImageToolJs/>
 
-- Node.js 20以上
+PNG、JPEG、GIF、BMP、decoderが対応するWebP、またはRGBA画素を、組込み向け画素配列と、そのままincludeできる
+C/C++ヘッダーへ変換します。同じJavaScript coreを、画像を外部へ送らないWeb workspace、
+再現可能なCLI、library APIから利用できます。
 
-## CLI
+## なぜ必要か
+
+PC向け画像ファイルの中身は、多くの場合、組込みdisplay libraryが期待する画素の並びとは異なります。
+firmwareにはFlash容量の制約があり、使える色形式や透明の表し方もlibraryごとに違います。
+Gfx Image Toolは、実際の変換後画素をpreviewし、互換性のあるtargetを選び、TinyGFXのdecoder代を
+含む画像集合全体を最適化してからsource codeを生成します。
+
+パレット、RGB565、dither、抜き色が初めてなら、まず
+**[初心者向けガイド](docs/GUIDE.ja.md)**を読んでください。形式とoptimizerの詳細は
+**[上級ガイド](docs/ADVANCED.ja.md)**に分けています。
+
+## クイックスタート
+
+### ブラウザ版
+
+[Web版](https://tanakamasayuki.github.io/GfxImageToolJs/)を開き、1枚以上の画像を追加してtargetの
+描画libraryを選びます。原画と変換後を比較して、次をdownloadできます。
+
+- projectをまとめた`.h`または選択画像のheader
+- 変換後PNGと左右比較PNG
+- CLIで再現するための`.imagesconfig`
+- 変換・最適化report JSON
+
+project共通設定と画像別overrideに対応し、TinyGFXでは複数画像を集合として最適化します。
+
+### CLI
+
+Node.js 20以上が必要です。
 
 ```sh
-npm install
-node bin/gfx-image-tool.js inspect icon.png
-node bin/gfx-image-tool.js build icon.png --format rgb565be --out icon.h
+npm install --global gfx-image-tool
+gfx-image-tool inspect icon.png --target tinygfx
+gfx-image-tool build icon.png --target tinygfx --out icon.h
 ```
 
-ディレクトリを指定すると、対象画像を既定で`generated/images.h` 1本へまとめます。
-画像ごとのheaderが必要なら`.imagesconfig`で`output_mode = split`を指定します。
+directory projectを再現可能に管理する例:
 
 ```sh
 gfx-image-tool init ./images
 gfx-image-tool build ./images
-gfx-image-tool inspect ./images
 gfx-image-tool build ./images --check
-gfx-image-tool build ./images --target tinygfx --preview ./previews --preview-layout comparison
-gfx-image-tool build ./images --target tinygfx --preview ./previews --preview-layout both
 ```
 
-`--check`はファイルを書き換えず、欠落または差分があれば終了コード2を返します。
-TinyGFXのdirectory変換も単体変換と同様に透過を既定で保持します。相対`--out`と
-`--preview`はcurrent directory基準です。previewを毎回検査する場合は`.imagesconfig`の
-`[preview] output_dir = previews`へ保存できます。
-directory出力はhidden manifestで追跡され、削除済み元画像のheader/previewは通常buildで削除、
-`--check`では`stale`として検出されます。manifestも生成物と一緒にcommitしてください。
-
-## ブラウザ版
-
-複数画像を1projectとして扱うWeb workspaceもあります。画像はuploadせずブラウザ内だけで
-decode・変換します。共通設定と画像別override、原画／変換後preview、TinyGFX集合最適化、
-project `.h`、変換後／左右比較PNG、`.imagesconfig`、JSON reportのdownloadに対応しています。
+directoryは既定で全画像を`generated/images.h`へまとめます。画像別headerが必要な場合は
+`.imagesconfig`で`output_mode = split`を指定します。CLIの相対`--out`と`--preview`はcurrent
+working directory基準、設定内の相対pathはproject root基準です。
 
 ```sh
-npm run serve
-# http://localhost:4173/
+gfx-image-tool build ./images --target tinygfx \
+  --preview ./previews --preview-layout both
 ```
 
-現在の対応形式:
+生成manifestがheaderとpreviewを追跡します。削除された元画像も`--check`で検出できるよう、hidden
+manifestを生成物と一緒にcommitしてください。
 
-- `bitmap1-msb` / `bitmap1-lsb` / `bitmap1-vertical`
-- `mask1-msb`
-- `gray8` / `indexed8` / `rgb332` / `rgb565le` / `rgb565be` / `rgb888`
+## 形式とTarget
 
-主なオプション:
+汎用形式:
 
-```sh
-gfx-image-tool build icon.png --format bitmap1-msb --threshold 144 --invert
-gfx-image-tool build icon.png --format bitmap1-msb --dither bayer4
-gfx-image-tool build icon.png --format rgb565be --matte 000000
-gfx-image-tool inspect icon.png --json
-```
+- 1bpp: `bitmap1-msb`、`bitmap1-lsb`、`bitmap1-vertical`、`mask1-msb`
+- 少色・索引色: `gray8`、`indexed8`、`rgb332`
+- 直接色: `rgb565le`、`rgb565be`、`rgb888`
 
-出力ターゲットは`generic-c`、`adafruit-gfx`、`u8g2`、`lovyangfx`、
-`arduino-gfx`、`tft-espi`、`tinygfx`です。ターゲットは利用可能な形式を制約し、対応する
-配列型と使用例をヘッダーへ生成します。
+monochrome出力はFloyd–Steinbergと2×2／4×4／8×8 Bayer ditherに対応します。
 
-### TinyGFX
+targetは`generic-c`、`adafruit-gfx`、`u8g2`、`lovyangfx`、`arduino-gfx`、`tft-espi`、
+`tinygfx`です。targetは互換formatを制約し、対応する宣言と使用方法をheaderへ生成します。
 
-単一画像では、画素データと固定デコーダコストの合計が最小になる形式を選び、
-単独でincludeできる`CellImage`ヘッダーを生成します。
+## TinyGFX
 
-```sh
-gfx-image-tool build icon.png --target tinygfx --out icon.h
-gfx-image-tool build logo.png --target tinygfx --monochrome --prefer-bitmap v
-gfx-image-tool inspect ./images --target tinygfx --json
-```
-
-候補は`raw565`、`rle565`、`rlepal4`、`bitmap1h`、`bitmap1v`です。
-ディレクトリbuildでは全画像をまとめて評価し、共有されるデコーダを含む合計Flash量を
-最小化します。既定のデコーダコストは1形式400 Bで、横・縦1bppを両方使う場合は
-`round(400 * 1.3) = 520 B`です。`--decoder-cost`または`[optimize] decoder_cost`で
-基準値を変更できます。同サイズの1bpp候補は`prefer_bitmap`で安定して選びます。
-
-TinyGFXヘッダーを使う側では先に画像APIをincludeします。
+TinyGFXの`auto`は`raw565`、`rle565`、`rlepal4`、`bitmap1h`、`bitmap1v`を評価します。
+directoryとWeb projectでは画像を1枚ずつ選ばず、画像dataと使用decoder集合の固定costを合計して
+最小化します。sourceの透過は既定で、可視色と衝突しない抜き色として保持されます。
 
 ```cpp
 #include <TinyGFX/Image.h>
-#include "icon.h"
+#include "images.h"
 
-lcd.drawImage(&iconRef, 10, 10);
+lcd.drawImage(&img_iconRef, 10, 10);
 ```
 
-PNG等のalphaをTinyGFXの透過色へ変換するには、プロジェクト設定で
-[alpha]の`mode = color-key`を指定します。`color = auto`では可視画素と衝突しない
-RGB565値を自動選択し、
-パレット形式では対応するpalette indexを出力します。
-
-## `.imagesconfig`
-
-```ini
-[general]
-output_dir = generated
-output_mode = bundle
-output_file = images.h
-prefix = ui_
-target = arduino-gfx
-
-[color]
-format = rgb565le
-colors = 256
-dither = none
-threshold = 128
-color = auto
-invert = false
-
-[alpha]
-mode = none
-matte = 000000
-threshold = 128
-
-[optimize]
-decoder_cost = 400
-prefer_bitmap = horizontal
-aligned_vblit = false
-
-[image "icons/*.png"]
-format = indexed8
-colors = 16
-dither = floyd-steinberg
-```
-
-入力は再帰走査され、`.imagesignore`で除外できます。画像別sectionはglobで共通設定を
-上書きします。既定の出力先`generated/`は入力として再走査されません。
+正確なsymbol名とtarget固有の使用方法は、生成headerとreportで確認できます。
 
 ## JavaScript API
 
@@ -143,11 +101,17 @@ const encoded = encodeImage(image, 'rgb565be');
 const { source } = emitCSource(encoded, 'generic-c', { name: 'redPixel' });
 ```
 
-Nodeで画像ファイルを読むadapterはサブパスに分離されています。
+Node画像decoder adapterは`gfx-image-tool/node`、browser decoderは`gfx-image-tool/browser`です。
 
-```js
-import { decodeImageFile } from 'gfx-image-tool/node';
-```
+## ドキュメント
+
+- [ドキュメント一覧](docs/README.ja.md)（[English](docs/README.md)）
+- [初心者向けガイド](docs/GUIDE.ja.md)（[English](docs/GUIDE.md)）
+- [上級ガイド](docs/ADVANCED.ja.md)（[English](docs/ADVANCED.md)）
+- [CLIリファレンス](docs/CLI.ja.md)（[English](docs/CLI.md)）
+- [実装仕様](docs/spec.ja.md)
+- [リリース手順](docs/release.ja.md)（[English](docs/release.md)）
+- [変更履歴](CHANGELOG.md)
 
 ## 開発
 
@@ -159,3 +123,5 @@ npm run types
 npm run smoke:dist
 npm run build:site
 ```
+
+[MIT License](LICENSE)で公開しています。

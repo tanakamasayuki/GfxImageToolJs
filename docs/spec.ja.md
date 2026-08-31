@@ -1,9 +1,12 @@
-# GfxImageToolJs 仕様書 v0.1（草案）
+# GfxImageToolJs 仕様書 v0.1
 
 - 対象読者: 本リポジトリの実装者・連携ツールの実装者
-- ステータス: 要件定義。未実装
-- 最終更新: 2026-08-29
-- 正本: 当面は本日本語版。仕様安定後に `spec.en.md` を併置する
+- ステータス: 初期リリースの実装基準。§17以降は実装履歴と将来候補
+- 最終更新: 2026-08-31
+- 正本: 本日本語版。英語の利用者向け技術解説は[Advanced guide](ADVANCED.md)を参照
+
+[README](../README.ja.md) | [初心者向けガイド](GUIDE.ja.md) | [Advanced guide](ADVANCED.md) |
+[CLIリファレンス](CLI.ja.md)
 
 参考資料:
 
@@ -37,7 +40,7 @@
 | npm パッケージ | `gfx-image-tool` |
 | CLI | `gfx-image-tool` |
 
-2026-08-29 時点で npm の `gfx-image-tool` は未登録である。公開直前に再確認する。
+npm package名と公開先accountは、[リリース手順](release.ja.md)に従って公開直前に確認する。
 
 ### 1.1 設計の柱
 
@@ -78,7 +81,7 @@ PNG / JPEG / GIF / BMP / WebP / RGBA
 | UC2 | モノクロ OLED 用画像を作る | 閾値、反転、ディザ、横詰め・縦詰めをプレビューできる |
 | UC3 | カラー LCD 用画像を作る | RGB332 / RGB565 / RGB888、バイト順、透過を選べる |
 | UC4 | ライブラリへそのまま貼れるヘッダーを作る | ターゲット別プリセットと使用例を生成する |
-| UC5 | 複数画像を個別の `.h` へ一括生成する | 設定ファイル、安定した順序、衝突しないシンボル、`--check` を持つ |
+| UC5 | 複数画像をbundleまたは個別の`.h`へ一括生成する | 設定、安定順序、衝突しないsymbol、`--check`を持つ |
 | UC6 | TinyGFX の flash 使用量を最小化する | 全符号化を比較し、画像集合単位でデータ＋固定デコーダ代を最小化する |
 | UC7 | 変換条件を対話的に決める | Web で原画・変換画・拡大画・容量を即時比較できる |
 | UC8 | CI で生成漏れを検出する | 書き込まない `--check` と機械可読 JSON を持つ |
@@ -94,7 +97,7 @@ PNG / JPEG / GIF / BMP / WebP / RGBA
 
 - PNG（アルファ付き含む）
 - JPEG
-- GIF（初期リリースは第 1 フレームのみ。アニメーションは診断を出す）
+- GIF（初期releaseはdecoderが返す第1frameのみ。animation診断は将来拡張）
 - BMP
 - Web API / JavaScript API からの `ImageData` 相当 RGBA8888
 
@@ -263,7 +266,7 @@ decoder ID と version を記録する。CI 用 golden は Node adapter を正�
 
 - 指定色数は 2..256。
 - 初期実装は deterministic median-cut。入力順や乱数に結果を依存させない。
-- 固定パレットの注入と、生成パレットの固定・再利用を可能にする。
+- 初期リリースは生成paletteを使う。固定paletteの注入・再利用は将来拡張とする。
 - パレット順には安定した tie-break を定義する。
 - RGB565 パレットを作る場合、量子化後の実色で重複を除去する。
 
@@ -304,19 +307,21 @@ decoder ID と version を記録する。CI 用 golden は Node adapter を正�
 公開 API の基本形:
 
 ```js
-decodeImage(bytes, options)            // adapter を注入、Promise<Image>
+decodeImageFile(path, options)          // gfx-image-tool/node
+decodeBrowserImage(file)                // gfx-image-tool/browser
 transformImage(image, options)         // Image
 canEncode(image, format, options)      // { ok, issues }
 encodeImage(image, format, options)    // EncodedImage
-encodeCandidates(image, options)       // Candidate[]
+encodeTinyCandidates(image, options)   // TinyGFX Candidate[]
 emitCSource(encoded, target, options)  // { source, usage, issues }
-inspectImage(image, options)           // 色数、alpha、候補サイズ、誤差
+inspectImage(image, options)           // 色数、alpha、候補サイズ
 ```
 
 - `canEncode` は例外を使わず制約違反を列挙する。
 - `encodeImage` は不可能な指定を黙って近似せず例外にする。
-- 候補には format、data / palette / mask bytes、total bytes、quality metrics を含める。
-- 画質評価は最低限 MSE / PSNR と alpha mismatch pixel count。知覚指標は後続。
+- 候補にはformat、data / palette / mask bytes、total bytesを含める。
+- MSE / PSNR、alpha mismatch pixel countなどの数値画質評価は将来拡張とする。初期releaseは
+  converted/comparison previewで判断する。
 - decode / filesystem I/O 以外は同期 pure function とする。
 
 ---
@@ -443,15 +448,9 @@ output_mode = bundle
 output_file = images.h
 prefix = images
 target = generic-c
-index_header =
 
 [input]
 patterns = **/*.png, **/*.jpg, **/*.jpeg, **/*.gif, **/*.bmp
-
-[transform]
-resize =
-filter = nearest
-matte = #000000
 
 [color]
 format = rgb565be
@@ -476,7 +475,6 @@ static = true
 
 [optimize]
 decoder_cost = 400
-bitmap_layout = auto
 prefer_bitmap = horizontal
 aligned_vblit = false
 
@@ -491,7 +489,7 @@ colors = 16
 alpha_mode = color-key
 ```
 
-- 不明 section / key は forward compatibility のため既定では warning にする。
+- 不明section / keyは初期releaseではforward compatibilityのため読み飛ばす。
 - 値不正は設定キーを示してエラーにする。既定値への黙った置換はしない。
 - CLI option は設定を上書きし、API option は CLI と同じ構造を使う。
 - 画像別 override は glob section（例: `[image "icons/*.png"]`）で指定可能にする。
@@ -520,7 +518,6 @@ gfx-image-tool --version
 --decoder-cost <N>     TinyGFX decoder 1形式の固定コスト（既定400 B）
 --check               書き込まず既存出力との一致を検査
 --json                stdout を機械可読 JSON にする
---report <path>       詳細レポート JSON の保存先
 --preview <path>      単一画像の変換後 PNG、または preview 出力 directory
 --preview-layout <id> converted、左右比較のcomparison、両方生成するboth
 --name <identifier>   単一画像のシンボル名
@@ -559,8 +556,7 @@ UI framework なしの静的アプリを GitHub Pages で配信する。単一�
 3. 一覧で寸法、元色数、alpha、候補形式、変換後容量を比較する。
 4. 画像を選び、共通設定を画像単位で上書きしてプレビューする。
 5. TinyGFX では全画像を集合最適化し、画像別最小との差を確認する。
-6. project `.h`、`.imagesconfig`、変換 report をdownloadする。split modeでは個別headerを
-   ZIPでもdownloadできる。
+6. project `.h`、選択画像の`.h`、変換後／左右比較PNG、`.imagesconfig`、JSON reportをdownloadする。
 
 1 枚だけ投入した場合も同じ画面を簡易モードとして使える。別の「お試し専用画面」は
 作らず、初期状態では基本項目だけを見せる。
@@ -574,32 +570,30 @@ project 共通に向く項目:
 
 - target、TinyGFX の固定 decoder cost / 最適化目的
 - format の `auto` / 許可形式集合
-- resize filter、既定 matte、既定 alpha threshold
+- 既定alpha threshold、透過色
 - C/C++ の storage、alignment、prefix、命名規則
 
 画像ごとに調整する項目:
 
-- symbol、出力 header 名、crop、resize、反転
+- symbol
 - mode: `auto` / `monochrome` / `grayscale` / `indexed` / `true-color`
 - 強制 format、最大色数、固定 palette
-- threshold、dither、alpha mode、透過色、matte
-- 1bpp の horizontal / vertical、`aligned-vblit`
+- threshold、dither、mode、format
 
 `mode` は利用者向けの入口で、選択した target に不可能な形式を隠す。実際の format は
 advanced 欄で確認・固定できる。`auto` は画質制約を満たす候補だけから選ぶ。
 
-最初から全項目を並べない。通常表示は target、mode、寸法、色数、dither、透過までとし、
-bit / byte order、固定 palette、stride、C 宣言、最適化制約は advanced に畳む。
+最初から全項目を並べない。通常表示はtarget、mode、色数、dither、透過までとし、decoder cost、
+1bpp preference、`aligned-vblit`、symbol prefix、header名はadvancedに畳む。
 
 ### 12.3 比較表示と出力
 
-プレビューには最近傍拡大、pixel grid、背景色切替、alpha checker、原画との split view、
-実寸表示を持たせる。候補ごとに色数、data / palette / mask、decoder cost、総量、MSE / PSNR
-を表示する。設定変更は core API を再実行するだけとし、UI 専用変換を作らない。
+プレビューには最近傍拡大、pixel grid、alpha checker、原画と変換後の並列表示を持たせる。
+候補ごとにdata / paletteとdecoder costを含む容量を表示する。設定変更はcore APIを再実行するだけとし、
+UI専用変換を作らない。背景色切替、実寸表示、MSE / PSNRは将来拡張とする。
 
-設定 export は project default と override を `.imagesconfig` へ書く。再 import すると同じ
-選択状態と出力 byte 列を再現する。ZIP は Web layer の利便機能とし、core の format や
-依存関係へ持ち込まない。
+設定exportはproject defaultとoverrideを`.imagesconfig`へ書く。再importすると同じ選択状態と
+出力byte列を再現する。初期releaseはproject bundleと選択画像headerを個別downloadし、ZIPは持たない。
 
 i18n、ロケール検査、サイト生成、Pages workflow は `LGFXFontToolJs` と同じ構造を使う。
 初期ロケールは `en` / `ja`。中国語追加は辞書追加だけで済む構造にする。
@@ -610,14 +604,16 @@ i18n、ロケール検査、サイト生成、Pages workflow は `LGFXFontToolJs
 
 ```js
 import {
-  decodeImage,
   transformImage,
   encodeImage,
-  encodeCandidates,
-  optimizeImageSet,
+  encodeTinyCandidates,
+  optimizeTinyImageSet,
   emitCSource,
   inspectImage,
 } from 'gfx-image-tool';
+
+import { decodeImageFile } from 'gfx-image-tool/node';
+import { decodeBrowserImage } from 'gfx-image-tool/browser';
 ```
 
 - package root は安定 API のみ export する。
@@ -652,24 +648,23 @@ GfxImageToolJs/
 │   ├── node/           # Node decoder と filesystem workflow
 │   ├── browser/        # browser decoder
 │   └── util/
-├── web/                # 編集する静的 Web ソース
-├── examples/
+├── web/                # 編集する静的Web source
 ├── docs/
+│   ├── GUIDE.md / GUIDE.ja.md
+│   ├── ADVANCED.md / ADVANCED.ja.md
+│   ├── CLI.md / CLI.ja.md
 │   ├── spec.ja.md
-│   ├── cli.ja.md
-│   ├── release.ja.md
-│   └── formats/
+│   └── release.md / release.ja.md
 ├── test/
-│   ├── fixtures/
 │   └── *.test.js
-├── oracle/             # TinyGFX 等との実物一致ハーネス
 ├── scripts/
 │   ├── build.js
 │   ├── build-site.js
 │   ├── smoke-dist.js
-│   ├── check-layers.js
 │   ├── check-locales.js
 │   ├── check-releasable.js
+│   ├── prepare-tinygfx-oracle.js
+│   ├── serve.js
 │   └── sync-version.js
 └── .github/workflows/
     ├── ci.yml
@@ -689,8 +684,8 @@ util ← model ← transform / format ← target / inspect / optimize
                                 CLI / Web
 ```
 
-`src/` から `web/`、`bin/`、Node builtin へ依存しない。Node builtin を使うコードは
-`src/node/` に閉じ込める。レイヤ違反を CI で検査する。
+`src/`のcoreから`web/`、`bin/`、Node builtinへ依存しない。Node builtinを使うコードは
+`src/node/`に閉じ込める。typecheckとbrowser bundle smokeで境界の崩れを検出する。
 
 ---
 
@@ -708,7 +703,7 @@ util ← model ← transform / format ← target / inspect / optimize
 - 各 transform の golden pixel 一致。
 - 量子化・dither の決定性と golden 一致。
 - PNG/JPEG/GIF/BMP decode、破損入力、巨大寸法拒否。
-- target ごとの C source snapshot と C/C++ compile smoke test。
+- targetごとのC source出力とusageのtest。
 - CLI、`--check`、JSON stdout、終了コード。
 - config parse、glob override、symbol collision、path traversal 防止。
 - package tarball の import、CLI、browser bundle smoke test。
@@ -733,7 +728,7 @@ util ← model ← transform / format ← target / inspect / optimize
 - 任意パスへの上書きを避け、出力先を解決・表示してから atomic replace する。
 - 一括処理の並列化を許すが、出力順と結果は変えない。
 
-`npm run check` は最低限 test、typecheck、layer check、locale check を含む。
+`npm run check`はtest、typecheck、locale checkを含む。
 CI は check、build、types、dist smoke、site build を実行する。
 
 ---
@@ -788,7 +783,9 @@ git push --follow-tags
 
 ---
 
-## 17. ロードマップ
+## 17. 実装履歴と今後
+
+Phase 1〜4は初期releaseへ実装済み。Phase 5は需要に応じて検討する将来候補である。
 
 ### Phase 1 — Core と汎用 C 出力
 
@@ -823,20 +820,20 @@ git push --follow-tags
 
 ---
 
-## 18. 未決事項
+## 18. 将来拡張で決める事項
 
-実装開始前または該当 Phase 開始時に決める。
+初期releaseのblockerではない。該当機能へ着手するときに決める。
 
 | 論点 | 現時点の案 |
 | --- | --- |
-| Node decoder の optional dependency | `@napi-rs/canvas`。実形式・EXIF・GIF 第1フレームの挙動を spike で固定する |
-| `.imagesconfig` の名前 | 本ツール専用設定として採用。既存エコシステムとの衝突が見つかれば変更 |
+| Node decoderのoptional dependency | 初期releaseは`@napi-rs/canvas`。変更時はdecode差とpackage容量を再評価する |
+| `.imagesconfig`の名前 | 本ツール専用設定として採用済み。将来変更する場合はmigrationを用意する |
 | target preset の厳密な API 対応版 | 各 upstream の version を fixture metadata に記録し、形式仕様と C template を分離する |
 | RGB565 palette の byte order | palette の整数表現と memory byte order を別 option として最終確定する |
-| GIF / WebP animation | 初期は第1フレーム＋warning。需要があれば frame set model を追加する |
-| crop/resize の Phase 1 範囲 | Core 設計には含める。CLI/UI 優先度は単一変換 spike 後に確定する |
+| GIF / WebP animation | 初期releaseは第1frameのみ。診断とframe set modelは需要に応じて追加する |
+| crop/resizeのUI/CLI公開 | Core APIには実装済み。UI/CLIへの公開は操作需要を確認して決める |
 | 最適化時の画質制約 | `maxMse` 等で候補を足切りしてから容量最小化する方式を初期案とする |
-| Web の対応言語 | 初期 en / ja。LGFXFontToolJs と同じ4言語へ広げるかは公開時に判断する |
+| Webの対応言語 | 初期releaseはen / ja。追加localeは辞書追加の需要に応じて判断する |
 
 ---
 
@@ -852,6 +849,6 @@ git push --follow-tags
    pixel exact で一致する。`img2h.py` との一致は符号化 byte 列の補助検査とする。
 6. byte order、bit order、alpha、端数幅、palette 境界を golden test で固定している。
 7. `npm run check`、build、types、dist smoke、site build が CI で通る。
-8. README（日英）、CLI 文書（日英）、format 文書、release 文書、CHANGELOG がある。
+8. README、初心者／上級guide、CLI文書、release文書が日英で相互linkされ、実装仕様とCHANGELOGがある。
 9. `npm pack --dry-run` に開発用 fixture や不要な native binary が混入しない。
 10. npm 名の再確認後、兄弟ツールと同じリリース手順で公開できる。

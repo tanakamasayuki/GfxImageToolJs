@@ -1,5 +1,11 @@
 # CLI リファレンス
 
+[English](CLI.md) | 日本語
+
+初めて画像を変換する場合は[初心者向けガイド](GUIDE.ja.md)、形式やTinyGFX最適化の背景は
+[上級ガイド](ADVANCED.ja.md)を先に参照してください。この文書は正確なコマンドと設定の
+リファレンスです。
+
 ## コマンド
 
 ```text
@@ -142,3 +148,9 @@ node scripts/prepare-tinygfx-oracle.js \
 
 生成したpairsをTinyGFXの同testへ置いてhost profileを実行すると、TinyGFX自身の
 decoderが描いた結果とPPMをRGB565でpixel exact比較できます。
+
+## 関連資料
+
+- [初心者向けガイド](GUIDE.ja.md)
+- [上級ガイド](ADVANCED.ja.md)
+- [README](../README.ja.md)

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- (EN) Add paired English/Japanese documentation paths with beginner and advanced guides, a documentation index, a prominent browser-workspace link, and a release checklist.
+- (JA) 初心者／上級ガイド、文書index、Web版への目立つ導線、release checklistを日英の対で追加。
 - (EN) Start the library-first image model, embedded pixel encoders, generic C emitter, and Node CLI.
 - (JA) Library First の画像モデル、組込み向け画素エンコーダ、汎用 C 出力、Node CLI の実装を開始。
 - (EN) Add deterministic indexed-color quantization, directory projects, configuration, check mode, and GFX target presets.
