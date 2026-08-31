@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { access, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -165,4 +165,28 @@ test('CLI project preview config participates in check without repeated options'
   const checked = JSON.parse((await exec(process.execPath, [cli, 'build', root, '--check', '--json'])).stdout);
   assert.equal(checked.previews[0].status, 'upToDate');
   assert.equal(checked.count, 1);
+});
+
+test('CLI check rejects stale split headers and previews, then build removes them', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'gfx-image-stale-cli-'));
+  const canvas = createCanvas(1, 1);
+  canvas.getContext('2d').fillRect(0, 0, 1, 1);
+  await writeFile(join(root, 'keep.png'), await canvas.encode('png'));
+  await writeFile(join(root, 'gone.png'), await canvas.encode('png'));
+  await writeFile(join(root, '.imagesconfig'), '[general]\noutput_mode = split\n[preview]\noutput_dir = previews\n');
+  await exec(process.execPath, [cli, 'build', root]);
+  const staleHeader = join(root, 'generated', 'gone.h');
+  const stalePreview = join(root, 'previews', 'gone.png');
+  await unlink(join(root, 'gone.png'));
+  await assert.rejects(exec(process.execPath, [cli, 'build', root, '--check']), (error) => {
+    assert.equal(/** @type {{code?: number}} */ (error).code, 2);
+    return true;
+  });
+  await access(staleHeader);
+  await access(stalePreview);
+  const rebuilt = JSON.parse((await exec(process.execPath, [cli, 'build', root, '--json'])).stdout);
+  assert.deepEqual(rebuilt.stale.map((/** @type {{status: string}} */ item) => item.status), ['removed']);
+  assert.deepEqual(rebuilt.stalePreviews.map((/** @type {{status: string}} */ item) => item.status), ['removed']);
+  await assert.rejects(access(staleHeader));
+  await assert.rejects(access(stalePreview));
 });

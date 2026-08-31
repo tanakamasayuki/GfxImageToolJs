@@ -1,7 +1,7 @@
 // @ts-check
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createCanvas } from '@napi-rs/canvas';
@@ -129,6 +129,34 @@ colors = 2
   const dirty = await writeImageProject(root, { check: true });
   assert.equal(dirty.results.find((result) => result.path.endsWith('photo.h'))?.status, 'mismatch');
   assert.equal(await readFile(join(root, 'generated', 'photo.h'), 'utf8'), before);
+});
+
+test('split project manifest detects and removes headers orphaned by deleted sources', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'gfx-image-stale-split-'));
+  await png(join(root, 'keep.png'), ['#ff0000']);
+  await png(join(root, 'gone.png'), ['#00ff00']);
+  await writeFile(join(root, '.imagesconfig'), '[general]\noutput_mode = split\n');
+  await writeImageProject(root);
+  const staleHeader = join(root, 'generated', 'gone.h');
+  await access(staleHeader);
+  await unlink(join(root, 'gone.png'));
+
+  const checked = await writeImageProject(root, { check: true });
+  assert.equal(checked.manifest.status, 'mismatch');
+  assert.deepEqual(checked.stale, [{ path: staleHeader, status: 'stale' }]);
+  await access(staleHeader);
+
+  const rebuilt = await writeImageProject(root);
+  assert.deepEqual(rebuilt.stale, [{ path: staleHeader, status: 'removed' }]);
+  await assert.rejects(access(staleHeader), (error) => /** @type {NodeJS.ErrnoException} */ (error).code === 'ENOENT');
+});
+
+test('project symbols never start with an underscore or digit', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'gfx-image-safe-symbol-'));
+  await png(join(root, '2nd.png'), ['#ff0000']);
+  const built = await buildImageProject(root, { target: 'tinygfx' });
+  assert.equal(built.images[0].symbol, 'img_2nd');
+  assert.match(built.bundle?.source ?? '', /img_2ndRef/);
 });
 
 test('init never overwrites an existing config', async () => {

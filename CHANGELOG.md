@@ -16,3 +16,5 @@
 - (JA) TinyGFX directory buildがraw565固定になる既定値を修正し、CLI/Webへ変換後・左右比較PNG出力を追加。
 - (EN) Preserve alpha by default in TinyGFX directory builds, align relative CLI output paths to the working directory, and make preview output configurable.
 - (JA) TinyGFX directoryの透過を既定で保持し、CLI相対出力をcurrent directory基準へ統一、preview出力を設定可能にした。
+- (EN) Track generated headers and previews with manifests so stale outputs are checked and removed, and avoid reserved leading-underscore C++ identifiers.
+- (JA) header/preview生成manifestで孤立出力を検査・削除し、予約済みの先頭underscore C++識別子を生成しないようにした。

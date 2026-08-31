@@ -429,6 +429,11 @@ asset bundle への取り込み、元画像ファイルの埋め込みは行わ�
 構造を出力directoryへ保ち、任意のindex headerを生成できる。生成先・設定ファイル自身は
 入力から除外する。
 
+header出力先とpreview出力先には生成manifestを置く。通常buildは前回manifestに記録され、
+今回の期待集合から外れたファイルだけを削除する。`--check`は削除せずstaleとして終了2を返す。
+manifestに記録されていないファイルは削除しない。数字またはunderscoreで始まる入力symbolは
+`img_`系prefixを付け、global namespaceの予約識別子を生成しない。
+
 設定例:
 
 ```ini

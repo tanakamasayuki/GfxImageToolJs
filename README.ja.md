@@ -31,6 +31,8 @@ gfx-image-tool build ./images --target tinygfx --preview ./previews --preview-la
 TinyGFXのdirectory変換も単体変換と同様に透過を既定で保持します。相対`--out`と
 `--preview`はcurrent directory基準です。previewを毎回検査する場合は`.imagesconfig`の
 `[preview] output_dir = previews`へ保存できます。
+directory出力はhidden manifestで追跡され、削除済み元画像のheader/previewは通常buildで削除、
+`--check`では`stale`として検出されます。manifestも生成物と一緒にcommitしてください。
 
 ## ブラウザ版
 

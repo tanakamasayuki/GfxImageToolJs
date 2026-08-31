@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // @ts-check
 import { readFileSync } from 'node:fs';
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { buildImageProject, createImagesConfig, decodeImageFile, encodePreviewPng, writeImageProject } from '../src/node/index.js';
+import { buildImageProject, createImagesConfig, decodeImageFile, encodePreviewPng, planGeneratedOutputs, PREVIEW_MANIFEST, writeImageProject } from '../src/node/index.js';
 import { decodeEncodedImage, emitCSource, encodeImage, grayscaleImage, inspectImage, listFormats, listTargets, optimizeTinyImage, reduceImageColors, rgb565, transformImage } from '../src/index.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -213,17 +213,19 @@ async function run(command, argv) {
     if (!built.images.length) throw new CliError(`no matching images in ${input}`, 1);
     const previewDirectory = built.config.preview.outputDir ? resolve(built.root, built.config.preview.outputDir) : undefined;
     if (parsed.values['preview-layout'] !== undefined && !previewDirectory) throw new CliError('--preview-layout requires --preview or [preview] output_dir.', 3);
-    const previews = previewDirectory ? await writeProjectPreviews(
+    const previewGeneration = previewDirectory ? await writeProjectPreviews(
       built,
       previewDirectory,
       built.config.preview.layout,
       !!parsed.values.check,
-    ) : [];
+    ) : { outputs: [], manifest: undefined, stale: [] };
     const result = {
       root: built.root,
       outputRoot: built.outputRoot,
       count: built.images.length,
       warnings: built.warnings,
+      manifest: { ...built.manifest, path: relative(built.root, built.manifest.path).replaceAll('\\', '/') },
+      stale: built.stale.map((item) => ({ ...item, path: relative(built.root, item.path).replaceAll('\\', '/') })),
       optimization: built.optimization ? {
         formats: built.optimization.formats,
         dataBytes: built.optimization.dataBytes,
@@ -233,15 +235,19 @@ async function run(command, argv) {
         vblit: built.optimization.vblit,
       } : undefined,
       results: built.results.map((item) => ({ ...item, path: relative(built.root, item.path).replaceAll('\\', '/') })),
-      previews: previews.map((item) => ({ ...item, path: relative(built.root, item.path).replaceAll('\\', '/') })),
+      previews: previewGeneration.outputs.map((item) => ({ ...item, path: relative(built.root, item.path).replaceAll('\\', '/') })),
+      previewManifest: previewGeneration.manifest ? { ...previewGeneration.manifest, path: relative(built.root, previewGeneration.manifest.path).replaceAll('\\', '/') } : undefined,
+      stalePreviews: previewGeneration.stale.map((item) => ({ ...item, path: relative(built.root, item.path).replaceAll('\\', '/') })),
     };
     if (parsed.values.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     else {
       for (const warning of built.warnings) console.error(`warning: ${warning.message}`);
       for (const item of result.results) console.error(`${item.path}  ${item.status}`);
       for (const item of result.previews) console.error(`${item.path}  ${item.status}  preview`);
+      for (const item of [...result.stale, ...result.stalePreviews]) console.error(`${item.path}  ${item.status}`);
     }
-    if ([...built.results, ...previews].some((item) => item.status === 'mismatch' || item.status === 'missingOutput')) {
+    const checkOutputs = [...built.results, built.manifest, ...built.stale, ...previewGeneration.outputs, ...previewGeneration.stale, ...(previewGeneration.manifest ? [previewGeneration.manifest] : [])];
+    if (checkOutputs.some((item) => item.status === 'mismatch' || item.status === 'missingOutput' || item.status === 'stale')) {
       throw new CliError('--check: generated output differs or does not exist', 2);
     }
     return;
@@ -383,14 +389,26 @@ async function writeBinaryOutput(path, bytes, check) {
  * @param {boolean} check
  */
 async function writeProjectPreviews(built, directory, layout, check) {
+  const paths = built.images.map((item) => {
+    const relativePng = item.relative.slice(0, item.relative.length - extname(item.relative).length) + '.png';
+    return resolve(directory, relativePng);
+  });
+  const generation = await planGeneratedOutputs(directory, PREVIEW_MANIFEST, 'previews', paths);
   const outputs = [];
-  for (const item of built.images) {
+  for (const [index, item] of built.images.entries()) {
     const converted = decodeEncodedImage(item.encoded, { target: item.target });
     const bytes = await encodePreviewPng(item.original, converted, layout);
-    const relativePng = item.relative.slice(0, item.relative.length - extname(item.relative).length) + '.png';
-    outputs.push(await writeBinaryOutput(resolve(directory, relativePng), bytes, check));
+    outputs.push(await writeBinaryOutput(paths[index], bytes, check));
   }
-  return outputs;
+  /** @type {{path: string, status: 'removed'|'stale'}[]} */
+  const stale = [];
+  if (!check) for (const path of generation.stale) {
+    await unlink(path);
+    stale.push({ path, status: 'removed' });
+  }
+  if (check) stale.push(...generation.stale.map((path) => ({ path, status: /** @type {const} */ ('stale') })));
+  const manifest = await writeBinaryOutput(generation.manifestPath, new TextEncoder().encode(generation.source), check);
+  return { outputs, manifest, stale };
 }
 
 /** @param {string} format */

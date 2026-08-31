@@ -1,5 +1,5 @@
 // @ts-check
-import { mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import { decodeImageFile } from './decode.js';
 import { IMAGES_CONFIG_TEMPLATE, parseImagesConfig, resolveImageConfig } from './config.js';
@@ -9,6 +9,7 @@ import { encodeImage, rgb565 } from '../format/registry.js';
 import { reduceImageColors } from '../transform/quantize.js';
 import { emitCBundle, emitCSource, sanitizeIdentifier } from '../target/csource.js';
 import { optimizeTinyImageSet } from '../optimize/tinygfx.js';
+import { HEADER_MANIFEST, planGeneratedOutputs } from './manifest.js';
 
 /** @typedef {import('./config.js').ImagesConfig} ImagesConfig */
 /** @typedef {{relative: string, absolute: string}} ImageEntry */
@@ -252,6 +253,7 @@ export async function writeImageProject(projectDir, options = {}) {
   const outputs = built.bundle
     ? [{ path: built.bundle.output, content: built.bundle.source }]
     : [...built.images.map((image) => ({ path: image.output, content: image.source })), ...(built.index ? [{ path: built.index.output, content: built.index.source }] : [])];
+  const generation = await planGeneratedOutputs(built.outputRoot, HEADER_MANIFEST, 'headers', outputs.map((output) => output.path));
   /** @type {{path: string, status: 'written'|'upToDate'|'mismatch'|'missingOutput'}[]} */
   const results = [];
   for (const output of outputs) {
@@ -270,7 +272,33 @@ export async function writeImageProject(projectDir, options = {}) {
     await rename(temporary, output.path);
     results.push({ path: output.path, status: 'written' });
   }
-  return { ...built, results };
+  let previousManifest;
+  try { previousManifest = await readFile(generation.manifestPath, 'utf8'); }
+  catch (error) {
+    if (/** @type {NodeJS.ErrnoException} */ (error).code !== 'ENOENT') throw error;
+  }
+  /** @type {{path: string, status: 'written'|'upToDate'|'mismatch'|'missingOutput'}} */
+  let manifest;
+  /** @type {{path: string, status: 'removed'|'stale'}[]} */
+  const stale = [];
+  if (options.check) {
+    manifest = {
+      path: generation.manifestPath,
+      status: previousManifest === undefined ? 'missingOutput' : previousManifest === generation.source ? 'upToDate' : 'mismatch',
+    };
+    stale.push(...generation.stale.map((path) => ({ path, status: /** @type {const} */ ('stale') })));
+  } else {
+    for (const path of generation.stale) {
+      await unlink(path);
+      stale.push({ path, status: 'removed' });
+    }
+    await mkdir(dirname(generation.manifestPath), { recursive: true });
+    const temporary = `${generation.manifestPath}.tmp-${process.pid}`;
+    await writeFile(temporary, generation.source, 'utf8');
+    await rename(temporary, generation.manifestPath);
+    manifest = { path: generation.manifestPath, status: 'written' };
+  }
+  return { ...built, results, manifest, stale };
 }
 
 /** @param {string} projectDir */

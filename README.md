@@ -29,6 +29,8 @@ gfx-image-tool build ./images --target tinygfx --preview ./previews --preview-la
 TinyGFX directory builds preserve source transparency by default. Relative CLI `--out` and
 `--preview` paths use the current directory. A `[preview] output_dir = previews` config entry makes
 preview generation and checking persistent.
+Hidden manifests track directory outputs: normal builds remove assets orphaned by deleted sources,
+while `--check` reports them as stale. Commit these manifests with generated assets.
 
 Current formats: `bitmap1-msb`, `bitmap1-lsb`, `bitmap1-vertical`, `mask1-msb`,
 `gray8`, `indexed8`, `rgb332`, `rgb565le`, `rgb565be`, and `rgb888`.

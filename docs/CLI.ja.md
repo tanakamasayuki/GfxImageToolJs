@@ -94,6 +94,19 @@ mode = monochrome
 非opaque pixelがある場合は`ALPHA_COMPOSITED` warningを出します。`preview.output_dir`を
 設定すると、`--preview`を毎回書かなくても通常buildと`--check`の両方へpreviewを含めます。
 
+## 孤立した生成物
+
+directory buildは出力先へ`.gfx-image-tool-headers.json`、preview先へ
+`.gfx-image-tool-previews.json`を生成し、前回生成したファイル集合を記録します。元画像を
+削除した場合、通常buildはmanifestに記録された孤立header/PNGだけを削除し、JSON reportでは
+`removed`とします。`--check`はファイルを変更せず`stale`として報告し、終了コード2を返します。
+
+生成物をcommitする運用では、この2つのhidden manifestも一緒にcommitしてください。
+manifestに載っていない利用者ファイルは削除対象になりません。
+
+入力名が数字またはunderscoreで始まる場合、C/C++の予約識別子を避けるためsymbolへ`img_`
+系prefixを付けます。例: `2nd.png` → `img_2ndRef`。
+
 `inspect --json`と`build --json`の`optimization`には、選択された形式集合、画素・paletteの
 合計byte数、decoder byte数、両者の合計が入ります。`vblit`欄の244 B（aligned）と
 408 B（generic）は比較情報であり、上記合計には加算しません。

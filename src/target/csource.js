@@ -14,8 +14,9 @@ const RESERVED = new Set([
 /** @param {string} value */
 export function sanitizeIdentifier(value) {
   let id = String(value || 'image').replace(/[^A-Za-z0-9_]/g, '_');
-  if (!/^[A-Za-z_]/.test(id)) id = `_${id}`;
   id = id.replace(/_+/g, '_');
+  if (/^_/.test(id)) id = `img${id}`;
+  else if (!/^[A-Za-z]/.test(id)) id = `img_${id}`;
   if (RESERVED.has(id)) id = `${id}_image`;
   return id || 'image';
 }

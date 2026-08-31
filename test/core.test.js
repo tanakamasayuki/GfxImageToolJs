@@ -103,9 +103,11 @@ test('inspection reports alpha and all Phase 1 candidates', () => {
 test('generic C output is deterministic and sanitizes identifiers', () => {
   const encoded = encodeImage(rgba([255, 0, 0, 255]), 'rgb565be');
   const { source } = emitCSource(encoded, 'generic-c', { name: '9 bad-name' });
-  assert.equal(sanitizeIdentifier('9 bad-name'), '_9_bad_name');
+  assert.equal(sanitizeIdentifier('9 bad-name'), 'img_9_bad_name');
+  assert.equal(sanitizeIdentifier('2nd'), 'img_2nd');
+  assert.equal(sanitizeIdentifier('_private'), 'img_private');
   assert.equal(sanitizeIdentifier('class'), 'class_image');
-  assert.match(source, /alignas\(4\) static const uint8_t _9_bad_name_data\[2\] PROGMEM/);
+  assert.match(source, /alignas\(4\) static const uint8_t img_9_bad_name_data\[2\] PROGMEM/);
   assert.match(source, /0xF8, 0x00/);
   assert.ok(source.endsWith('\n'));
 });
