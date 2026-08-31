@@ -244,11 +244,15 @@ async function run(command, argv) {
       for (const warning of built.warnings) console.error(`warning: ${warning.message}`);
       for (const item of result.results) console.error(`${item.path}  ${item.status}`);
       for (const item of result.previews) console.error(`${item.path}  ${item.status}  preview`);
+      console.error(`${result.manifest.path}  ${manifestStatus(result.manifest.status)}`);
+      if (result.previewManifest) console.error(`${result.previewManifest.path}  ${manifestStatus(result.previewManifest.status)}`);
+      if (!parsed.values.check && !built.manifest.hadManifest) console.error('warning: header manifest was missing; stale headers could not be detected on this build.');
+      if (!parsed.values.check && previewGeneration.manifest && !previewGeneration.manifest.hadManifest) console.error('warning: preview manifest was missing; stale previews could not be detected on this build.');
       for (const item of [...result.stale, ...result.stalePreviews]) console.error(`${item.path}  ${item.status}`);
     }
     const checkOutputs = [...built.results, built.manifest, ...built.stale, ...previewGeneration.outputs, ...previewGeneration.stale, ...(previewGeneration.manifest ? [previewGeneration.manifest] : [])];
     if (checkOutputs.some((item) => item.status === 'mismatch' || item.status === 'missingOutput' || item.status === 'stale')) {
-      throw new CliError('--check: generated output differs or does not exist', 2);
+      throw new CliError('--check: generated output or manifest is stale, different, or missing', 2);
     }
     return;
   }
@@ -407,8 +411,13 @@ async function writeProjectPreviews(built, directory, layout, check) {
     stale.push({ path, status: 'removed' });
   }
   if (check) stale.push(...generation.stale.map((path) => ({ path, status: /** @type {const} */ ('stale') })));
-  const manifest = await writeBinaryOutput(generation.manifestPath, new TextEncoder().encode(generation.source), check);
+  const manifest = { ...(await writeBinaryOutput(generation.manifestPath, new TextEncoder().encode(generation.source), check)), hadManifest: generation.hadManifest };
   return { outputs, manifest, stale };
+}
+
+/** @param {string} status */
+function manifestStatus(status) {
+  return ({ written: 'written manifest', upToDate: 'upToDate manifest', mismatch: 'mismatch manifest', missingOutput: 'missing manifest' })[status] ?? `${status} manifest`;
 }
 
 /** @param {string} format */

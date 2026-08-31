@@ -190,3 +190,25 @@ test('CLI check rejects stale split headers and previews, then build removes the
   await assert.rejects(access(staleHeader));
   await assert.rejects(access(stalePreview));
 });
+
+test('CLI names missing manifests instead of contradicting up-to-date output lines', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'gfx-image-missing-manifest-'));
+  const canvas = createCanvas(1, 1);
+  canvas.getContext('2d').fillRect(0, 0, 1, 1);
+  await writeFile(join(root, 'pixel.png'), await canvas.encode('png'));
+  await writeFile(join(root, '.imagesconfig'), '[preview]\noutput_dir = previews\n');
+  await exec(process.execPath, [cli, 'build', root]);
+  await unlink(join(root, 'generated', '.gfx-image-tool-headers.json'));
+  await unlink(join(root, 'previews', '.gfx-image-tool-previews.json'));
+  await assert.rejects(exec(process.execPath, [cli, 'build', root, '--check']), (error) => {
+    const failure = /** @type {{code?: number, stderr?: string}} */ (error);
+    assert.equal(failure.code, 2);
+    assert.match(failure.stderr ?? '', /generated\/\.gfx-image-tool-headers\.json  missing manifest/);
+    assert.match(failure.stderr ?? '', /previews\/\.gfx-image-tool-previews\.json  missing manifest/);
+    assert.match(failure.stderr ?? '', /output or manifest is stale, different, or missing/);
+    return true;
+  });
+  const rebuilt = await exec(process.execPath, [cli, 'build', root]);
+  assert.match(rebuilt.stderr, /header manifest was missing; stale headers could not be detected/);
+  assert.match(rebuilt.stderr, /preview manifest was missing; stale previews could not be detected/);
+});

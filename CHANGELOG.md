@@ -18,3 +18,5 @@
 - (JA) TinyGFX directoryの透過を既定で保持し、CLI相対出力をcurrent directory基準へ統一、preview出力を設定可能にした。
 - (EN) Track generated headers and previews with manifests so stale outputs are checked and removed, and avoid reserved leading-underscore C++ identifiers.
 - (JA) header/preview生成manifestで孤立出力を検査・削除し、予約済みの先頭underscore C++識別子を生成しないようにした。
+- (EN) Show header and preview manifest status explicitly so missing dotfiles explain `--check` failures.
+- (JA) header/preview manifestの状態を明示し、dotfile欠落による`--check`失敗理由を表示する。

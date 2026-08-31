@@ -103,6 +103,9 @@ directory buildは出力先へ`.gfx-image-tool-headers.json`、preview先へ
 
 生成物をcommitする運用では、この2つのhidden manifestも一緒にcommitしてください。
 manifestに載っていない利用者ファイルは削除対象になりません。
+`--check`はmanifest自体も`upToDate manifest`、`mismatch manifest`、`missing manifest`として
+path付きで表示します。通常build時にmanifestが無ければ作り直しますが、そのbuildでは以前の
+孤立ファイルを特定できないためwarningを表示します。
 
 入力名が数字またはunderscoreで始まる場合、C/C++の予約識別子を避けるためsymbolへ`img_`
 系prefixを付けます。例: `2nd.png` → `img_2ndRef`。

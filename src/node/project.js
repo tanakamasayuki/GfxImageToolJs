@@ -277,7 +277,7 @@ export async function writeImageProject(projectDir, options = {}) {
   catch (error) {
     if (/** @type {NodeJS.ErrnoException} */ (error).code !== 'ENOENT') throw error;
   }
-  /** @type {{path: string, status: 'written'|'upToDate'|'mismatch'|'missingOutput'}} */
+  /** @type {{path: string, status: 'written'|'upToDate'|'mismatch'|'missingOutput', hadManifest: boolean}} */
   let manifest;
   /** @type {{path: string, status: 'removed'|'stale'}[]} */
   const stale = [];
@@ -285,6 +285,7 @@ export async function writeImageProject(projectDir, options = {}) {
     manifest = {
       path: generation.manifestPath,
       status: previousManifest === undefined ? 'missingOutput' : previousManifest === generation.source ? 'upToDate' : 'mismatch',
+      hadManifest: generation.hadManifest,
     };
     stale.push(...generation.stale.map((path) => ({ path, status: /** @type {const} */ ('stale') })));
   } else {
@@ -296,7 +297,7 @@ export async function writeImageProject(projectDir, options = {}) {
     const temporary = `${generation.manifestPath}.tmp-${process.pid}`;
     await writeFile(temporary, generation.source, 'utf8');
     await rename(temporary, generation.manifestPath);
-    manifest = { path: generation.manifestPath, status: 'written' };
+    manifest = { path: generation.manifestPath, status: 'written', hadManifest: generation.hadManifest };
   }
   return { ...built, results, manifest, stale };
 }

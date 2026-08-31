@@ -47,6 +47,7 @@ export async function planGeneratedOutputs(root, manifestName, kind, expectedPat
   const files = [...new Set(expectedPaths.map((path) => managedRelative(root, path)))].sort();
   /** @type {string[]} */
   let previous = [];
+  let hadManifest = true;
   try {
     const parsed = JSON.parse(await readFile(manifestPath, 'utf8'));
     if (parsed?.version !== 1 || parsed?.kind !== kind || !Array.isArray(parsed.files) || !parsed.files.every((/** @type {unknown} */ item) => typeof item === 'string')) {
@@ -55,6 +56,7 @@ export async function planGeneratedOutputs(root, manifestName, kind, expectedPat
     previous = parsed.files;
   } catch (error) {
     if (/** @type {NodeJS.ErrnoException} */ (error).code !== 'ENOENT') throw error;
+    hadManifest = false;
   }
   const expected = new Set(files);
   const stale = [];
@@ -63,5 +65,5 @@ export async function planGeneratedOutputs(root, manifestName, kind, expectedPat
     if (!expected.has(item) && await exists(path)) stale.push(path);
   }
   const source = `${JSON.stringify({ version: 1, kind, files }, null, 2)}\n`;
-  return { manifestPath, source, stale };
+  return { manifestPath, source, stale, hadManifest };
 }
