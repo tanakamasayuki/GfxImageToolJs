@@ -232,6 +232,7 @@ color = auto
 # source_key = FF00FF
 
 [preview]
+# Preview generation is disabled until output_dir is set. Uncomment the next line to enable it.
 # output_dir = .gfx-image-tool/previews
 layout = converted
 

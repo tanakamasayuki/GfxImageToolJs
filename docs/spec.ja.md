@@ -440,7 +440,8 @@ bundleにはEmbed Asset Toolと同系統の`*_file_count`、`*_file_names`、`*_
 `TinyGFXImageRef`への`*_file_refs`も生成する。入力相対path順を全配列で共有する。一覧が未参照なら
 section GCで一覧と未使用画像を除去でき、pointer一覧を参照した場合は全参照先を保持する設計とする。
 
-headerの追跡cacheは`images/.gfx-image-tool/`、previewの追跡manifestはpreview出力先へ置く。通常buildは前回cacheに記録され、
+headerの追跡cacheは`images/.gfx-image-tool/headers.json`、previewの追跡cacheは
+`images/.gfx-image-tool/previews.json`へ置き、preview出力先には生成PNG以外を置かない。通常buildは前回cacheに記録され、
 今回の期待集合から外れたファイルだけを削除する。`--check`は削除せずstaleとして終了2を返す。
 cacheに記録されていないファイルは削除しない。`.gfx-image-tool/`は入力走査とgit管理から除外し、
 削除しても同じheaderを再生成できる。cache欠落だけでは`--check`を失敗させず、stale検出を省略した
@@ -473,6 +474,7 @@ threshold = 128
 color = auto
 
 [preview]
+# 空ならpreview生成は無効
 output_dir =
 layout = converted
 

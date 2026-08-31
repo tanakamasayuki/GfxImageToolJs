@@ -699,7 +699,8 @@ function serializeConfig() {
     '[color]', `format = ${settings.format}`, `mode = ${settings.mode}`, `colors = ${settings.colors}`,
     `dither = ${settings.dither}`, `threshold = ${settings.threshold}`, 'invert = false', '',
     '[alpha]', `mode = ${settings.alphaMode}`, 'matte = 000000', `threshold = ${settings.alphaThreshold}`, `color = ${settings.alphaColor}`, '',
-    '[preview]', '# output_dir = .gfx-image-tool/previews', 'layout = converted', '',
+    '[preview]', '# Preview generation is disabled until output_dir is set. Uncomment the next line to enable it.',
+    '# output_dir = .gfx-image-tool/previews', 'layout = converted', '',
     '[csource]', 'storage = PROGMEM', 'align = 4', 'static = true', '',
     '[optimize]', `decoder_cost = ${settings.decoderCost}`, `prefer_bitmap = ${settings.preferBitmap}`, `aligned_vblit = ${settings.alignedVblit}`, '',
   ];

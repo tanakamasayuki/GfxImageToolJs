@@ -177,7 +177,8 @@ gfx-image-tool build ./MySketch --check
 
 新規projectの`.imagesconfig`は`MySketch/images/`にあり、`output_dir = ..`が既定です。任意の
 `output_dir`と`output_file`へ変更できます。`--check`はread-onlyで、欠落・差分・stale outputがあれば
-終了2です。headerは`images/.gfx-image-tool/headers.json`、previewはpreview出力先のmanifestで、ツールが
+終了2です。headerは`images/.gfx-image-tool/headers.json`、previewは
+`images/.gfx-image-tool/previews.json`で、ツールが
 以前生成したファイルだけを追跡します。通常buildはcache上の孤立ファイルを削除し、利用者が置いた
 未追跡ファイルは削除しません。`.gfx-image-tool/`は派生cacheなのでgitへ入れず、削除しても同じheaderへ
 戻せます。

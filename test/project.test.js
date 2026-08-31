@@ -204,6 +204,7 @@ test('init never overwrites an existing config', async () => {
   assert.equal(first.status, 'created');
   assert.equal(first.path, join(root, 'images', '.imagesconfig'));
   assert.match(original, /output_dir = \.\./);
+  assert.match(original, /Preview generation is disabled until output_dir is set/);
   assert.equal(await readFile(join(root, 'images', '.gitignore'), 'utf8'), '.gfx-image-tool/\n');
   assert.equal(second.status, 'exists');
   assert.equal(await readFile(first.path, 'utf8'), original);

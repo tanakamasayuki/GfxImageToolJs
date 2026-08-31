@@ -3,7 +3,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { isAbsolute, relative, resolve } from 'node:path';
 
 export const HEADER_MANIFEST = '.gfx-image-tool-headers.json';
-export const PREVIEW_MANIFEST = '.gfx-image-tool-previews.json';
+export const PREVIEW_MANIFEST = 'previews.json';
 
 /** @param {string} root @param {string} path */
 function managedRelative(root, path) {

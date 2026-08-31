@@ -5,7 +5,7 @@ import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { buildImageProject, createImagesConfig, decodeImageFile, encodePreviewPng, planGeneratedOutputs, PREVIEW_MANIFEST, resolveImageProjectDirectory, writeImageProject } from '../src/node/index.js';
+import { buildImageProject, createImagesConfig, decodeImageFile, encodePreviewPng, IMAGE_PROJECT_STATE_DIR, planGeneratedOutputs, PREVIEW_MANIFEST, resolveImageProjectDirectory, writeImageProject } from '../src/node/index.js';
 import { decodeEncodedImage, emitCSource, encodeImage, grayscaleImage, inspectImage, listFormats, listTargets, optimizeTinyImage, reduceImageColors, rgb565, transformImage } from '../src/index.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -422,7 +422,13 @@ async function writeProjectPreviews(built, directory, layout, check) {
     if (previous) throw new CliError(`preview output collision: ${entry.path} (${previous} and ${entry.item.relative})`, 3);
     owners.set(entry.path, entry.item.relative);
   }
-  const generation = await planGeneratedOutputs(directory, PREVIEW_MANIFEST, 'previews', entries.map((entry) => entry.path));
+  const generation = await planGeneratedOutputs(
+    directory,
+    PREVIEW_MANIFEST,
+    'previews',
+    entries.map((entry) => entry.path),
+    { manifestPath: resolve(built.root, IMAGE_PROJECT_STATE_DIR, PREVIEW_MANIFEST) },
+  );
   const outputs = [];
   for (const entry of entries) {
     const converted = decodeEncodedImage(entry.item.encoded, { target: entry.item.target });

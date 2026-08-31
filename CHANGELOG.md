@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- (EN) Move preview tracking into the disposable `images/.gfx-image-tool/previews.json` cache so committed preview directories contain only reviewable images, and clarify that previews are disabled until configured.
+- (JA) preview追跡情報を使い捨ての`images/.gfx-image-tool/previews.json`へ移し、commit対象のpreview directoryを画像だけに整理。設定するまでpreviewが無効であることも雛形へ明記。
 - (EN) Add Embed Asset Tool-style image count, name, data, size, dimension, and format indexes to bundle headers, plus directly drawable TinyGFX reference indexes.
 - (JA) bundle headerへEmbed Asset Tool形式の画像count・name・data・size・寸法・形式一覧と、直接描画できるTinyGFX reference一覧を追加。
 - (EN) Adopt a clean `images/ -> ../images.h` project layout with configurable output placement, sketch-root CLI discovery, disposable Git-ignored tool cache, and matching Web ZIP import/export.

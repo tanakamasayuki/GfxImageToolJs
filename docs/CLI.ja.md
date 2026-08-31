@@ -154,8 +154,9 @@ TinyGFXの`auto`では、最終的な抜き色またはbitmap背景として保�
 
 ## 孤立した生成物
 
-canonical projectはheader追跡cacheを`images/.gfx-image-tool/headers.json`へ、preview追跡情報を
-preview先の`.gfx-image-tool-previews.json`へ生成し、前回生成したファイル集合を記録します。元画像を
+canonical projectはheader追跡cacheを`images/.gfx-image-tool/headers.json`へ、preview追跡cacheを
+`images/.gfx-image-tool/previews.json`へ生成し、前回生成したファイル集合を記録します。preview出力先には
+PNGだけを生成し、追跡用のdot fileを混在させません。元画像を
 削除した場合、通常buildはmanifestに記録された孤立header/PNGだけを削除し、JSON reportでは
 `removed`とします。`--check`はファイルを変更せず`stale`として報告し、終了コード2を返します。
 

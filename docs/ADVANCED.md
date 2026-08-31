@@ -181,8 +181,9 @@ gfx-image-tool build ./MySketch --check
 
 The new `.imagesconfig` lives in `MySketch/images/` and defaults to `output_dir = ..`; both
 `output_dir` and `output_file` may point elsewhere. `--check` is read-only and exits 2 for missing,
-different, or stale output. `images/.gfx-image-tool/headers.json` tracks headers, while preview
-outputs retain their own manifest. A normal build removes manifest-tracked orphans and never removes
+different, or stale output. `images/.gfx-image-tool/headers.json` tracks headers and
+`images/.gfx-image-tool/previews.json` tracks previews, leaving the preview output free of cache files.
+A normal build removes manifest-tracked orphans and never removes
 an untracked user file. `.gfx-image-tool/` is derived cache: keep it out of Git and delete it freely;
 the same headers are regenerated.
 

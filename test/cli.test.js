@@ -233,21 +233,24 @@ test('CLI check rejects stale split headers and previews, then build removes the
 test('CLI treats missing manifests as disposable cache while warning about stale detection', async () => {
   const root = await mkdtemp(join(tmpdir(), 'gfx-image-missing-manifest-'));
   const project = join(root, 'images');
+  const expected = join(root, 'expected');
   await mkdir(project);
   const canvas = createCanvas(1, 1);
   canvas.getContext('2d').fillRect(0, 0, 1, 1);
   await writeFile(join(project, 'pixel.png'), await canvas.encode('png'));
-  await writeFile(join(project, '.imagesconfig'), '[preview]\noutput_dir = .gfx-image-tool/previews\n');
+  await writeFile(join(project, '.imagesconfig'), '[preview]\noutput_dir = ../expected\n');
   await exec(process.execPath, [cli, 'build', root]);
+  await access(join(expected, 'pixel.png'));
+  await assert.rejects(access(join(expected, '.gfx-image-tool-previews.json')));
   await unlink(join(project, '.gfx-image-tool', 'headers.json'));
-  await unlink(join(project, '.gfx-image-tool', 'previews', '.gfx-image-tool-previews.json'));
+  await unlink(join(project, '.gfx-image-tool', 'previews.json'));
   const checked = await exec(process.execPath, [cli, 'build', root, '--check']);
   assert.match(checked.stderr, /\.gfx-image-tool\/headers\.json  missing manifest/);
-  assert.match(checked.stderr, /\.gfx-image-tool\/previews\/\.gfx-image-tool-previews\.json  missing manifest/);
+  assert.match(checked.stderr, /\.gfx-image-tool\/previews\.json  missing manifest/);
   assert.match(checked.stderr, /header cache is missing; expected headers were checked, but stale headers could not be detected/);
   assert.match(checked.stderr, /preview cache is missing; expected previews were checked, but stale previews could not be detected/);
   const rebuilt = await exec(process.execPath, [cli, 'build', root]);
   assert.doesNotMatch(rebuilt.stderr, /cache is missing/);
   await access(join(project, '.gfx-image-tool', 'headers.json'));
-  await access(join(project, '.gfx-image-tool', 'previews', '.gfx-image-tool-previews.json'));
+  await access(join(project, '.gfx-image-tool', 'previews.json'));
 });
