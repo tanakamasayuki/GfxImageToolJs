@@ -110,13 +110,18 @@ test('CLI exports converted and side-by-side comparison PNG previews', async () 
   const { dir, path } = await fixture();
   const convertedPath = join(dir, 'converted.png');
   const comparisonPath = join(dir, 'comparison.png');
+  const bothPath = join(dir, 'both.png');
   await exec(process.execPath, [cli, 'build', path, '--format', 'rgb565be', '--preview', convertedPath]);
   await exec(process.execPath, [cli, 'build', path, '--format', 'rgb565be', '--preview', comparisonPath, '--preview-layout', 'comparison']);
+  const both = JSON.parse((await exec(process.execPath, [cli, 'build', path, '--format', 'rgb565be', '--preview', bothPath, '--preview-layout', 'both', '--json'])).stdout);
   const { loadImage } = await import('@napi-rs/canvas');
   const converted = await loadImage(convertedPath);
   const comparison = await loadImage(comparisonPath);
   assert.deepEqual([converted.width, converted.height], [2, 1]);
   assert.deepEqual([comparison.width, comparison.height], [4, 1]);
+  await access(join(dir, 'both.comparison.png'));
+  assert.equal(both.preview.path, bothPath);
+  assert.equal(both.comparisonPreview.path, join(dir, 'both.comparison.png'));
 });
 
 test('CLI file and directory TinyGFX builds both preserve source transparency by default', async () => {
@@ -154,16 +159,18 @@ test('CLI directory relative out and preview paths share the current working dir
   assert.equal(checked.previews[0].status, 'upToDate');
 });
 
-test('CLI project preview config participates in check without repeated options', async () => {
+test('CLI project preview config can emit and check converted and comparison images together', async () => {
   const root = await mkdtemp(join(tmpdir(), 'gfx-image-preview-config-'));
   const canvas = createCanvas(1, 1);
   canvas.getContext('2d').fillRect(0, 0, 1, 1);
   await writeFile(join(root, 'pixel.png'), await canvas.encode('png'));
-  await writeFile(join(root, '.imagesconfig'), '[preview]\noutput_dir = previews\nlayout = comparison\n');
+  await writeFile(join(root, '.imagesconfig'), '[preview]\noutput_dir = previews\nlayout = both\n');
   const built = JSON.parse((await exec(process.execPath, [cli, 'build', root, '--json'])).stdout);
   assert.equal(built.previews[0].path, 'previews/pixel.png');
+  assert.equal(built.previews[1].path, 'previews/pixel.comparison.png');
   const checked = JSON.parse((await exec(process.execPath, [cli, 'build', root, '--check', '--json'])).stdout);
   assert.equal(checked.previews[0].status, 'upToDate');
+  assert.equal(checked.previews[1].status, 'upToDate');
   assert.equal(checked.count, 1);
 });
 

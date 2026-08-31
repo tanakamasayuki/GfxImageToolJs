@@ -18,11 +18,13 @@ Check mode is read-only and exits with status 2 for missing or different output.
 arguments exit with status 3.
 
 `--preview <path>` writes pixels decoded from the generated asset. Use
-`--preview-layout comparison` to place the source on the left and converted pixels on the right.
+`--preview-layout comparison` to place the source on the left and converted pixels on the right, or
+`--preview-layout both` to emit the converted path plus a sibling `<stem>.comparison.png`.
 For directory builds, the preview path is an output directory and input subdirectories are preserved.
 Relative CLI `--out` and `--preview` paths use the current working directory; relative config paths
 use the project root. Configure persistent previews with `[preview] output_dir = previews` and
-`layout = converted|comparison`; they are then included in `--check` without repeating `--preview`.
+`layout = converted|comparison|both`; they are then included in `--check` without repeating `--preview`.
+Preview output is always PNG. PPM is used only by the legacy binary-P6 oracle import helper.
 
 ## TinyGFX
 

@@ -8,7 +8,7 @@ import { buildGlobMatcher } from './ignore.js';
  * @property {{patterns: string[]}} input
  * @property {{format: string, mode: 'auto'|'monochrome'|'grayscale'|'indexed'|'true-color', colors: number, dither: Dither, threshold: number, invert: boolean}} color
  * @property {{mode: 'auto'|'none'|'color-key', matte: [number, number, number], threshold: number, color: 'auto'|[number, number, number]}} alpha
- * @property {{outputDir: string, layout: 'converted'|'comparison'}} preview
+ * @property {{outputDir: string, layout: 'converted'|'comparison'|'both'}} preview
  * @property {{storage: string, align: number, static: boolean}} csource
  * @property {{decoderCost: number, preferBitmap: 'horizontal'|'vertical', alignedVblit: boolean}} optimize
  * @property {{pattern: string, values: Record<string, string>}[]} overrides
@@ -97,7 +97,7 @@ export function parseImagesConfig(text) {
   if (preferBitmap !== 'horizontal' && preferBitmap !== 'vertical') throw new Error(`Unknown prefer_bitmap: ${preferBitmap}`);
   const target = general.target || 'generic-c';
   const previewLayout = preview.layout || 'converted';
-  if (previewLayout !== 'converted' && previewLayout !== 'comparison') throw new Error(`Unknown preview layout: ${previewLayout}`);
+  if (previewLayout !== 'converted' && previewLayout !== 'comparison' && previewLayout !== 'both') throw new Error(`Unknown preview layout: ${previewLayout}`);
   return {
     general: {
       outputDir: general.output_dir || 'generated',
@@ -127,7 +127,7 @@ export function parseImagesConfig(text) {
     },
     preview: {
       outputDir: preview.output_dir || '',
-      layout: /** @type {'converted'|'comparison'} */ (previewLayout),
+      layout: /** @type {'converted'|'comparison'|'both'} */ (previewLayout),
     },
     csource: {
       storage: csource.storage ?? 'PROGMEM',

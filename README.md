@@ -24,6 +24,7 @@ gfx-image-tool init ./images
 gfx-image-tool build ./images
 gfx-image-tool build ./images --check
 gfx-image-tool build ./images --target tinygfx --preview ./previews --preview-layout comparison
+gfx-image-tool build ./images --target tinygfx --preview ./previews --preview-layout both
 ```
 
 TinyGFX directory builds preserve source transparency by default. Relative CLI `--out` and

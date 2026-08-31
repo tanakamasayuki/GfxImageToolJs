@@ -77,7 +77,7 @@ function transparent565(color) {
 /**
  * Build every prospective header without writing.
  * @param {string} projectDir
- * @param {{outputDir?: string, previewDir?: string, previewLayout?: 'converted'|'comparison', prefix?: string, format?: string, target?: string, mode?: 'auto'|'monochrome'|'grayscale'|'indexed'|'true-color', colors?: number, dither?: import('./config.js').Dither, threshold?: number, invert?: boolean, alphaThreshold?: number, alphaColor?: 'auto'|[number, number, number], matte?: [number, number, number], decoderCost?: number, preferBitmap?: 'horizontal'|'vertical', alignedVblit?: boolean}} [options]
+ * @param {{outputDir?: string, previewDir?: string, previewLayout?: 'converted'|'comparison'|'both', prefix?: string, format?: string, target?: string, mode?: 'auto'|'monochrome'|'grayscale'|'indexed'|'true-color', colors?: number, dither?: import('./config.js').Dither, threshold?: number, invert?: boolean, alphaThreshold?: number, alphaColor?: 'auto'|[number, number, number], matte?: [number, number, number], decoderCost?: number, preferBitmap?: 'horizontal'|'vertical', alignedVblit?: boolean}} [options]
  */
 export async function buildImageProject(projectDir, options = {}) {
   const root = resolve(projectDir);
@@ -246,7 +246,7 @@ function tinyAllowedFormats(format) {
 
 /**
  * @param {string} projectDir
- * @param {{outputDir?: string, previewDir?: string, previewLayout?: 'converted'|'comparison', prefix?: string, format?: string, target?: string, mode?: 'auto'|'monochrome'|'grayscale'|'indexed'|'true-color', colors?: number, dither?: import('./config.js').Dither, threshold?: number, invert?: boolean, alphaThreshold?: number, alphaColor?: 'auto'|[number, number, number], matte?: [number, number, number], decoderCost?: number, preferBitmap?: 'horizontal'|'vertical', alignedVblit?: boolean, check?: boolean}} [options]
+ * @param {{outputDir?: string, previewDir?: string, previewLayout?: 'converted'|'comparison'|'both', prefix?: string, format?: string, target?: string, mode?: 'auto'|'monochrome'|'grayscale'|'indexed'|'true-color', colors?: number, dither?: import('./config.js').Dither, threshold?: number, invert?: boolean, alphaThreshold?: number, alphaColor?: 'auto'|[number, number, number], matte?: [number, number, number], decoderCost?: number, preferBitmap?: 'horizontal'|'vertical', alignedVblit?: boolean, check?: boolean}} [options]
  */
 export async function writeImageProject(projectDir, options = {}) {
   const built = await buildImageProject(projectDir, options);

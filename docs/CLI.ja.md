@@ -18,7 +18,7 @@ gfx-image-tool init [directory]
 | --- | --- |
 | `--out <path>` | 単一画像の出力ヘッダー、またはprojectの出力directory |
 | `--preview <path>` | 単一画像の変換後PNG、またはproject previewの出力directory |
-| `--preview-layout <id>` | `converted`（既定）または原画と変換後を横に並べる`comparison` |
+| `--preview-layout <id>` | `converted`（既定）、左右に並べる`comparison`、両方出す`both` |
 | `--target <id>` | C出力target。TinyGFXは`tinygfx` |
 | `--format <id>` | 形式を固定。TinyGFXの既定は`auto` |
 | `--mode <mode>` | `auto`、`monochrome`、`grayscale`、`indexed`、`true-color` |
@@ -44,11 +44,18 @@ TinyGFXでは`--decoder-cost <N>`で1形式分の固定コストを変更でき�
 gfx-image-tool build icon.png --target tinygfx --preview icon-converted.png
 gfx-image-tool build icon.png --target tinygfx \
   --preview icon-comparison.png --preview-layout comparison
+gfx-image-tool build icon.png --target tinygfx \
+  --preview icon.png --preview-layout both
 ```
 
 directoryの場合、`--preview previews`のように出力directoryを指定します。入力のsubdirectory
 構造を保ったPNGが生成されます。previewはheaderへ格納された形式をdecodeした画素なので、
 RGB565の丸め、palette減色、1bpp化、透過を含みます。`comparison`は左が原画、右が変換後です。
+`both`では指定pathが変換後画像、同じdirectoryの`<stem>.comparison.png`が左右比較画像に
+なります。directory出力でも`image.png`と`image.comparison.png`を同時生成します。
+`--preview`が生成するのは常に一般的なPNGです。PPMはTinyGFXの旧P6 oracle fixtureを読む
+補助scriptだけで使い、preview出力には使いません。P6 PPMはheaderに続けて無圧縮RGB byteを
+並べるalphaなしの形式で、目視確認や配布にはPNGのほうが適しています。
 CLIで指定する相対`--out`と`--preview`は、単一画像・directoryのどちらもcurrent working
 directory基準です。`.imagesconfig`内の相対pathはproject root基準です。
 
@@ -73,7 +80,7 @@ color = auto
 
 [preview]
 output_dir = previews
-layout = converted
+layout = both
 
 [optimize]
 decoder_cost = 400

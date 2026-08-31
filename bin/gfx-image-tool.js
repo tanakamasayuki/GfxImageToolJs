@@ -21,7 +21,7 @@ const USAGE = `gfx-image-tool — convert images into embedded C/C++ assets
 options
   --out <path>          output header for a file, output directory for a project
   --preview <path>      converted PNG for a file, preview directory for a project
-  --preview-layout <id> converted (default) or comparison (source | converted)
+  --preview-layout <id> converted (default), comparison, or both
   --target <id>         ${listTargets().join(', ')}
   --format <id>         ${listFormats().join(', ')}
   --mode <mode>         auto, monochrome, grayscale, indexed, true-color
@@ -145,12 +145,12 @@ async function run(command, argv) {
   const transparentColor = parseTransparentColor(parsed.values['transparent-color']);
   if (matte && transparentColor !== undefined) throw new CliError('--matte and --transparent-color cannot be used together.', 3);
   const previewLayout = parsed.values['preview-layout'] ?? 'converted';
-  if (previewLayout !== 'converted' && previewLayout !== 'comparison') throw new CliError('--preview-layout must be converted or comparison.', 3);
+  if (previewLayout !== 'converted' && previewLayout !== 'comparison' && previewLayout !== 'both') throw new CliError('--preview-layout must be converted, comparison, or both.', 3);
   if (info.isDirectory()) {
     const projectOptions = {
       outputDir: parsed.values.out === undefined ? undefined : resolve(parsed.values.out),
       previewDir: parsed.values.preview === undefined ? undefined : resolve(parsed.values.preview),
-      previewLayout: parsed.values['preview-layout'] === undefined ? undefined : /** @type {'converted'|'comparison'} */ (previewLayout),
+      previewLayout: parsed.values['preview-layout'] === undefined ? undefined : /** @type {'converted'|'comparison'|'both'} */ (previewLayout),
       prefix: parsed.values.prefix,
       format: parsed.values.format,
       target: parsed.values.target,
@@ -344,13 +344,20 @@ async function run(command, argv) {
     }
     status = previous === undefined ? 'missingOutput' : previous === emitted.source ? 'upToDate' : 'mismatch';
   } else await writeFile(output, emitted.source, 'utf8');
-  let preview;
+  const previewOutputs = [];
   if (parsed.values.preview) {
     const previewPath = resolve(parsed.values.preview);
     const converted = decodeEncodedImage(encoded, { target });
-    const bytes = await encodePreviewPng(original, converted, /** @type {'converted'|'comparison'} */ (previewLayout));
-    preview = await writeBinaryOutput(previewPath, bytes, !!parsed.values.check);
+    const layouts = previewLayout === 'both'
+      ? /** @type {const} */ ([['converted', previewPath], ['comparison', comparisonPreviewPath(previewPath)]])
+      : /** @type {const} */ ([[previewLayout, previewPath]]);
+    for (const [layout, path] of layouts) {
+      const bytes = await encodePreviewPng(original, converted, /** @type {'converted'|'comparison'} */ (layout));
+      previewOutputs.push(await writeBinaryOutput(path, bytes, !!parsed.values.check));
+    }
   }
+  const preview = previewOutputs[0];
+  const comparisonPreview = previewOutputs[1];
   const result = {
     input, output, name, target, format: tiny?.format ?? format, width: image.width, height: image.height,
     bytes: encoded.data.length + encoded.stats.paletteBytes, decoderBytes: tiny?.decoderBytes, totalBytes: tiny?.totalBytes,
@@ -361,13 +368,20 @@ async function run(command, argv) {
     } : undefined,
     status,
     ...(preview ? { preview } : {}),
+    ...(comparisonPreview ? { comparisonPreview } : {}),
   };
   if (parsed.values.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   else {
     console.error(`${output}  ${status}  ${tiny?.format ?? format}  ${encoded.data.length} B  (${image.width}x${image.height})`);
-    if (preview) console.error(`${preview.path}  ${preview.status}  preview`);
+    for (const item of previewOutputs) console.error(`${item.path}  ${item.status}  preview`);
   }
-  if (status === 'missingOutput' || status === 'mismatch' || preview?.status === 'missingOutput' || preview?.status === 'mismatch') throw new CliError('--check: generated output differs or does not exist', 2);
+  if (status === 'missingOutput' || status === 'mismatch' || previewOutputs.some((item) => item.status === 'missingOutput' || item.status === 'mismatch')) throw new CliError('--check: generated output differs or does not exist', 2);
+}
+
+/** @param {string} path */
+function comparisonPreviewPath(path) {
+  const extension = extname(path);
+  return extension ? `${path.slice(0, -extension.length)}.comparison${extension}` : `${path}.comparison.png`;
 }
 
 /** @param {string} path @param {Uint8Array} bytes @param {boolean} check */
@@ -389,20 +403,30 @@ async function writeBinaryOutput(path, bytes, check) {
 /**
  * @param {Awaited<ReturnType<typeof writeImageProject>>} built
  * @param {string} directory
- * @param {'converted'|'comparison'} layout
+ * @param {'converted'|'comparison'|'both'} layout
  * @param {boolean} check
  */
 async function writeProjectPreviews(built, directory, layout, check) {
-  const paths = built.images.map((item) => {
-    const relativePng = item.relative.slice(0, item.relative.length - extname(item.relative).length) + '.png';
-    return resolve(directory, relativePng);
+  const entries = built.images.flatMap((item) => {
+    const stem = item.relative.slice(0, item.relative.length - extname(item.relative).length);
+    if (layout === 'both') return [
+      { item, layout: /** @type {const} */ ('converted'), path: resolve(directory, `${stem}.png`) },
+      { item, layout: /** @type {const} */ ('comparison'), path: resolve(directory, `${stem}.comparison.png`) },
+    ];
+    return [{ item, layout, path: resolve(directory, `${stem}.png`) }];
   });
-  const generation = await planGeneratedOutputs(directory, PREVIEW_MANIFEST, 'previews', paths);
+  const owners = new Map();
+  for (const entry of entries) {
+    const previous = owners.get(entry.path);
+    if (previous) throw new CliError(`preview output collision: ${entry.path} (${previous} and ${entry.item.relative})`, 3);
+    owners.set(entry.path, entry.item.relative);
+  }
+  const generation = await planGeneratedOutputs(directory, PREVIEW_MANIFEST, 'previews', entries.map((entry) => entry.path));
   const outputs = [];
-  for (const [index, item] of built.images.entries()) {
-    const converted = decodeEncodedImage(item.encoded, { target: item.target });
-    const bytes = await encodePreviewPng(item.original, converted, layout);
-    outputs.push(await writeBinaryOutput(paths[index], bytes, check));
+  for (const entry of entries) {
+    const converted = decodeEncodedImage(entry.item.encoded, { target: entry.item.target });
+    const bytes = await encodePreviewPng(entry.item.original, converted, /** @type {'converted'|'comparison'} */ (entry.layout));
+    outputs.push(await writeBinaryOutput(entry.path, bytes, check));
   }
   /** @type {{path: string, status: 'removed'|'stale'}[]} */
   const stale = [];

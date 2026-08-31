@@ -20,3 +20,5 @@
 - (JA) header/preview生成manifestで孤立出力を検査・削除し、予約済みの先頭underscore C++識別子を生成しないようにした。
 - (EN) Show header and preview manifest status explicitly so missing dotfiles explain `--check` failures.
 - (JA) header/preview manifestの状態を明示し、dotfile欠落による`--check`失敗理由を表示する。
+- (EN) Add `--preview-layout both` to emit converted and side-by-side PNGs in one build.
+- (JA) 変換後PNGと左右比較PNGを同時生成する`--preview-layout both`を追加。

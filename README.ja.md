@@ -25,6 +25,7 @@ gfx-image-tool build ./images
 gfx-image-tool inspect ./images
 gfx-image-tool build ./images --check
 gfx-image-tool build ./images --target tinygfx --preview ./previews --preview-layout comparison
+gfx-image-tool build ./images --target tinygfx --preview ./previews --preview-layout both
 ```
 
 `--check`はファイルを書き換えず、欠落または差分があれば終了コード2を返します。
