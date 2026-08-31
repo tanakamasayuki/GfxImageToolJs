@@ -24,11 +24,11 @@
       <div id="drop-zone" class="drop-zone" tabindex="0">
         <div>
           <h2 data-i18n="drop.title">Drop, paste, or choose images</h2>
-          <p data-i18n="drop.note">PNG, JPEG, GIF, BMP, WebP, or .imagesconfig.</p>
+          <p data-i18n="drop.note">PNG, JPEG, GIF, BMP, WebP, .imagesconfig, or a project ZIP.</p>
           <p class="privacy" data-i18n="app.privacy">Images stay in this browser.</p>
         </div>
         <button id="choose" class="primary" type="button" data-i18n="drop.choose">Choose images</button>
-        <input id="files" type="file" accept="image/*,.imagesconfig" multiple hidden>
+        <input id="files" type="file" accept="image/*,.imagesconfig,.zip,application/zip" multiple hidden>
       </div>
       <p id="status" class="status" aria-live="polite"></p>
     </section>
@@ -54,8 +54,8 @@
         </label>
         <label data-i18n-title="help.alphaThreshold"><span data-i18n="project.alphaThreshold">Transparency threshold</span><input id="alpha-threshold" type="number" min="0" max="255" value="128"></label>
       </div>
-      <details>
-        <summary data-i18n="project.advanced">Advanced settings</summary>
+      <div class="additional-settings">
+        <h3 data-i18n="project.advanced">Additional settings</h3>
         <div class="controls advanced-controls">
           <label data-i18n-title="help.alphaColor"><span data-i18n="project.alphaColor">Reserved transparent color</span><input id="alpha-color" type="text" value="auto" pattern="auto|#?[0-9a-fA-F]{6}"></label>
           <label data-i18n-title="help.decoder"><span data-i18n="project.decoder">Decoder size estimate</span><input id="decoder-cost" type="number" min="0" value="400"></label>
@@ -64,7 +64,7 @@
           <label data-i18n-title="help.prefix"><span data-i18n="project.prefix">C symbol prefix</span><input id="prefix" type="text" value="img_"></label>
           <label data-i18n-title="help.output"><span data-i18n="project.output">Generated header name</span><input id="output-file" type="text" value="images.h"></label>
         </div>
-      </details>
+      </div>
     </section>
 
     <div class="work-grid">
@@ -79,6 +79,7 @@
         <h2><span class="step">3</span><span data-i18n="editor.title">Selected image</span></h2>
         <div id="editor-empty" class="empty" data-i18n="images.empty">Add images to start.</div>
         <div id="editor" hidden>
+          <p id="editor-error" class="inline-error" hidden></p>
           <div id="effective-settings" class="effective-settings"></div>
           <div class="controls override-controls">
             <label class="grow"><span data-i18n="editor.symbol">Symbol override</span><input id="override-symbol" type="text" data-i18n-placeholder="editor.inherit"></label>
@@ -104,6 +105,11 @@
             <figure><figcaption data-i18n="preview.original">Original</figcaption><div id="original-wrap" class="canvas-wrap checker"><canvas id="original-preview"></canvas></div></figure>
             <figure><figcaption data-i18n="preview.converted">Converted</figcaption><div id="converted-wrap" class="canvas-wrap checker"><canvas id="converted-preview"></canvas></div></figure>
           </div>
+          <div class="button-row selected-downloads">
+            <button id="download-selected" disabled data-i18n="export.selected">Download selected .h</button>
+            <button id="download-converted" disabled data-i18n="export.converted">Download converted PNG</button>
+            <button id="download-comparison" disabled data-i18n="export.comparison">Download comparison PNG</button>
+          </div>
         </div>
       </section>
     </div>
@@ -123,30 +129,15 @@
     <section class="card export-card">
       <h2><span class="step">5</span><span data-i18n="export.title">Project files</span></h2>
       <p class="note" data-i18n="export.note"></p>
-      <div class="export-tabs" role="tablist">
-        <button id="tab-project" class="export-tab active" type="button" role="tab" aria-selected="true" data-export-tab="project" data-i18n="export.projectTab">Project package</button>
-        <button id="tab-individual" class="export-tab" type="button" role="tab" aria-selected="false" data-export-tab="individual" data-i18n="export.individualTab">Selected image</button>
-      </div>
       <div id="export-project" class="export-panel">
         <div class="button-row export-primary">
           <button id="download-zip" class="primary" disabled data-i18n="export.zip">Download project ZIP</button>
           <button id="download-header" disabled data-i18n="export.header">Download project .h</button>
           <button id="download-config" data-i18n="export.config">Download .imagesconfig</button>
-          <button id="import-config" data-i18n="export.import">Import .imagesconfig</button>
-          <input id="config-file" type="file" accept=".imagesconfig,text/plain" hidden>
-          <button id="download-report" disabled data-i18n="export.report">Download report.json</button>
         </div>
         <div class="file-browser">
           <div><h3 data-i18n="export.tree">ZIP contents</h3><ul id="export-tree" class="file-tree"></ul></div>
           <div><h3 id="export-preview-title" data-i18n="export.preview">File preview</h3><pre id="export-preview" class="source-preview"></pre></div>
-        </div>
-      </div>
-      <div id="export-individual" class="export-panel" hidden>
-        <p class="section-help" data-i18n="export.individualHelp">Optional exports for inspecting or using only the selected image.</p>
-        <div class="button-row">
-          <button id="download-selected" disabled data-i18n="export.selected">Download selected .h</button>
-          <button id="download-converted" disabled data-i18n="export.converted">Download converted PNG</button>
-          <button id="download-comparison" disabled data-i18n="export.comparison">Download comparison PNG</button>
         </div>
       </div>
     </section>

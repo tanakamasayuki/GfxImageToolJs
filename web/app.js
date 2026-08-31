@@ -1,5 +1,7 @@
 // @ts-check
 import {
+  browserProjectPath,
+  browserProjectRoot,
   compositeAlpha,
   compareImages,
   createStoredZip,
@@ -12,6 +14,7 @@ import {
   listTargets,
   optimizeTinyImageSet,
   reduceImageColors,
+  readStoredZip,
   rgb565,
   sanitizeIdentifier,
   targetFormats,
@@ -39,7 +42,7 @@ const DEFAULTS = {
 };
 
 /** @typedef {{symbol?: string, mode?: string, format?: string, colors?: number, threshold?: number, dither?: string}} Override */
-/** @typedef {{id: number, name: string, image: import('../src/model/image.js').GfxImage, thumbnail: string, override: Override}} WorkspaceImage */
+/** @typedef {{id: number, name: string, image: import('../src/model/image.js').GfxImage, thumbnail: string, sourceBytes: Uint8Array, sourceType: string, override: Override}} WorkspaceImage */
 /** @type {typeof DEFAULTS} */
 let settings = loadSettings();
 /** @type {WorkspaceImage[]} */
@@ -49,6 +52,9 @@ let nextId = 1;
 let selectedExportPath = '';
 /** @type {{pattern: string, values: Record<string, string>}[]} */
 let importedOverrides = [];
+let computeError = '';
+/** @type {WeakMap<File, string>} */
+const virtualPaths = new WeakMap();
 /** @type {null | {header: string, images: {item: WorkspaceImage, prepared: import('../src/model/image.js').GfxImage, encoded: import('../src/format/registry.js').EncodedImage, format: string, symbol: string, bytes: number}[], optimization?: ReturnType<typeof optimizeTinyImageSet>, report: object}} */
 let computed = null;
 
@@ -193,6 +199,7 @@ function prepare(item) {
 function recompute() {
   if (!images.length) {
     computed = null;
+    computeError = '';
     renderAll();
     return;
   }
@@ -254,10 +261,12 @@ function recompute() {
       })),
     };
     computed = { header, images: results, optimization, report };
+    computeError = '';
     setStatus(t('status.ready', { count: images.length }));
   } catch (error) {
     computed = null;
-    setStatus(t('status.error', { message: /** @type {Error} */ (error).message }), true);
+    computeError = /** @type {Error} */ (error).message;
+    setStatus(t('status.error', { message: computeError }), true);
   }
   renderAll();
 }
@@ -274,21 +283,57 @@ function setStatus(message, error = false) {
 /** @param {FileList|File[]} files */
 async function addFiles(files) {
   const incoming = Array.from(files);
+  const archives = incoming.filter((file) => file.type === 'application/zip' || /\.zip$/i.test(file.name));
+  if (archives.length) {
+    const archive = archives.at(-1);
+    if (!archive) return;
+    try {
+      setStatus(t('status.openingZip', { name: archive.name }));
+      const entries = readStoredZip(new Uint8Array(await archive.arrayBuffer()))
+        .filter((entry) => entry.name === '.imagesconfig' || entry.name.startsWith('images/'));
+      if (!entries.some((entry) => entry.name === '.imagesconfig') || !entries.some((entry) => entry.name.startsWith('images/'))) {
+        throw new Error(t('status.invalidProjectZip'));
+      }
+      const projectFiles = entries.map((entry) => {
+        const name = entry.name.split('/').at(-1) || entry.name;
+        const type = entry.name === '.imagesconfig' ? 'text/plain' : imageMime(name);
+        const copy = new Uint8Array(entry.data.length); copy.set(entry.data);
+        const file = new File([copy.buffer], name, { type });
+        virtualPaths.set(file, entry.name);
+        return file;
+      });
+      images = []; selectedId = 0; importedOverrides = []; computed = null; computeError = '';
+      await addFiles(projectFiles);
+      return;
+    } catch (error) {
+      setStatus(t('status.error', { message: /** @type {Error} */ (error).message }), true);
+      return;
+    }
+  }
   const configs = incoming.filter((file) => file.name === '.imagesconfig' || file.name.endsWith('.imagesconfig'));
+  const lastConfig = configs.at(-1);
+  const configPath = lastConfig ? (virtualPaths.get(lastConfig) || lastConfig.webkitRelativePath || lastConfig.name) : '';
+  const projectRoot = configPath ? browserProjectRoot(configPath) : '';
+  if (projectRoot) for (const item of images) {
+    if (item.name.startsWith(projectRoot)) item.name = browserProjectPath(item.name, projectRoot);
+  }
   const replaced = [];
   for (const file of incoming.filter((candidate) => !configs.includes(candidate))) {
     if (!file.type.startsWith('image/') && !/\.(png|jpe?g|gif|bmp|webp)$/i.test(file.name)) continue;
     setStatus(t('status.decoding', { name: file.name }));
     try {
+      const sourceBytes = new Uint8Array(await file.arrayBuffer());
       const image = await decodeBrowserImage(file, { name: file.name });
-      const name = file.webkitRelativePath || file.name;
+      const name = browserProjectPath(virtualPaths.get(file) || file.webkitRelativePath || file.name, projectRoot);
       const existing = images.find((item) => item.name === name);
       if (existing) {
         existing.image = image;
         existing.thumbnail = imageUrl(image);
+        existing.sourceBytes = sourceBytes;
+        existing.sourceType = file.type || 'application/octet-stream';
         replaced.push(name);
       } else {
-        const item = { id: nextId++, name, image, thumbnail: imageUrl(image), override: {} };
+        const item = { id: nextId++, name, image, thumbnail: imageUrl(image), sourceBytes, sourceType: file.type || 'application/octet-stream', override: {} };
         applyImportedOverride(item);
         images.push(item);
       }
@@ -305,6 +350,12 @@ async function addFiles(files) {
     recompute();
     if (replaced.length) setStatus(t('images.replaced', { name: replaced.join(', ') }));
   }
+}
+
+/** @param {string} name */
+function imageMime(name) {
+  const extension = name.split('.').at(-1)?.toLowerCase();
+  return ({ png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp' })[extension ?? ''] ?? 'application/octet-stream';
 }
 
 /** @param {import('../src/model/image.js').GfxImage} image */
@@ -353,9 +404,11 @@ function renderImageList() {
     const body = document.createElement('div');
     const name = document.createElement('div'); name.className = 'image-name'; name.textContent = item.name;
     const meta = document.createElement('div'); meta.className = 'image-meta'; meta.textContent = `${item.image.width}×${item.image.height}`;
-    const format = document.createElement('div'); format.className = 'image-format'; format.textContent = result?.format ?? '—';
+    const format = document.createElement('div'); format.className = 'image-format'; format.textContent = result?.format ?? (computeError ? t('images.failed') : '—');
+    if (computeError) format.title = computeError;
     body.append(name, meta, format);
-    const size = document.createElement('div'); size.className = 'image-size'; size.textContent = result ? t('images.bytes', { bytes: result.bytes }) : '—';
+    const size = document.createElement('div'); size.className = 'image-size'; size.textContent = result ? t('images.bytes', { bytes: result.bytes }) : (computeError ? '!' : '—');
+    if (computeError) size.title = computeError;
     li.append(order, thumb, body, size);
     li.addEventListener('click', () => { selectedId = item.id; renderAll(); });
     list.append(li);
@@ -367,6 +420,9 @@ function renderEditor() {
   $('editor').hidden = !item;
   $('editor-empty').hidden = !!item;
   if (!item) return;
+  const editorError = $('editor-error');
+  editorError.hidden = !computeError;
+  editorError.textContent = computeError ? t('images.computeError', { message: computeError }) : '';
   const converted = computed?.images.find((entry) => entry.item.id === item.id);
   const effective = { ...settings, ...item.override };
   fillFormatOptions(select('override-format'), true);
@@ -451,7 +507,6 @@ function renderAll() {
   /** @type {HTMLButtonElement} */ ($('download-selected')).disabled = !computed || !selectedItem();
   /** @type {HTMLButtonElement} */ ($('download-converted')).disabled = !computed || !selectedItem();
   /** @type {HTMLButtonElement} */ ($('download-comparison')).disabled = !computed || !selectedItem();
-  /** @type {HTMLButtonElement} */ ($('download-report')).disabled = !computed;
 }
 
 /** @param {BlobPart} content @param {string} name @param {string} type */
@@ -484,11 +539,29 @@ function pngBytes(image) {
 
 function projectTextFiles() {
   return new Map([
+    ['README.txt', projectReadme()],
     [`generated/${settings.outputFile}`, computed?.header ?? ''],
-    ['.imagesconfig', serializeConfig()],
+    ['.imagesconfig', serializeConfig('images/')],
     ['report.json', computed ? `${JSON.stringify(computed.report, null, 2)}\n` : ''],
   ]);
 }
+
+function projectReadme() {
+  return `Gfx Image Tool project / Gfx Image Tool プロジェクト
+
+The original images are stored under images/. Generated files are under generated/,
+and visual checks are under previews/. From the project root, rebuild or verify with:
+
+元画像は images/、生成物は generated/、確認画像は previews/ にあります。
+project rootで再生成・検査できます:
+
+  gfx-image-tool build .
+  gfx-image-tool build . --check
+`;
+}
+
+/** @param {WorkspaceImage} item */
+function zipSourceName(item) { return `images/${item.name.replace(/^images\//, '')}`; }
 
 /** @param {number} index @param {WorkspaceImage} item */
 function previewStem(index, item) {
@@ -512,8 +585,13 @@ function renderExport() {
     li.append(button); tree.append(li);
   };
   folder('gfx-image-project.zip', 0);
+  file('README.txt', 'README.txt', 1, textFiles.get('README.txt') ?? '');
   file('.imagesconfig', '.imagesconfig', 1, textFiles.get('.imagesconfig') ?? '');
   file('report.json', 'report.json', 1, textFiles.get('report.json') ?? '');
+  folder('images/', 1);
+  for (const item of images) file(zipSourceName(item), zipSourceName(item).slice('images/'.length), 2, t('export.sourcePreview', {
+    type: item.sourceType || t('export.unknownType'), width: item.image.width, height: item.image.height,
+  }));
   folder('generated/', 1);
   file(`generated/${settings.outputFile}`, settings.outputFile, 2, textFiles.get(`generated/${settings.outputFile}`) ?? '');
   folder('previews/', 1);
@@ -535,6 +613,7 @@ async function projectZip() {
   if (!computed) throw new Error('No generated project.');
   /** @type {{name: string, data: Uint8Array|string}[]} */
   const entries = [...projectTextFiles()].map(([name, data]) => ({ name, data }));
+  for (const item of images) entries.push({ name: zipSourceName(item), data: item.sourceBytes });
   for (const [index, result] of computed.images.entries()) {
     const name = previewStem(index, result.item);
     const converted = decodeEncodedImage(result.encoded, { target: settings.target });
@@ -544,7 +623,8 @@ async function projectZip() {
   return createStoredZip(entries);
 }
 
-function serializeConfig() {
+/** @param {string} [imageRoot] */
+function serializeConfig(imageRoot = '') {
   const lines = [
     '# Generated by Gfx Image Tool web workspace', '[general]', 'output_dir = generated',
     'output_mode = bundle', `output_file = ${settings.outputFile}`, `prefix = ${settings.prefix}`, `target = ${settings.target}`, '',
@@ -558,7 +638,8 @@ function serializeConfig() {
   for (const item of images) {
     const entries = Object.entries(item.override).filter(([, value]) => value !== undefined && value !== '');
     if (!entries.length) continue;
-    lines.push(`[image "${item.name.replaceAll('"', '_')}"]`);
+    const projectName = imageRoot ? `${imageRoot}${item.name.replace(/^images\//, '')}` : item.name;
+    lines.push(`[image "${projectName.replaceAll('"', '_')}"]`);
     for (const [key, value] of entries) lines.push(`${key} = ${value}`);
     lines.push('');
   }
@@ -635,14 +716,6 @@ $('remove-dialog').addEventListener('close', () => {
 });
 for (const id of ['zoom', 'grid', 'preview-background']) $(id).addEventListener('input', renderEditor);
 
-for (const tab of document.querySelectorAll('[data-export-tab]')) tab.addEventListener('click', () => {
-  const selected = tab.getAttribute('data-export-tab');
-  for (const button of document.querySelectorAll('[data-export-tab]')) {
-    const active = button === tab; button.classList.toggle('active', active); button.setAttribute('aria-selected', String(active));
-  }
-  $('export-project').hidden = selected !== 'project'; $('export-individual').hidden = selected !== 'individual';
-});
-
 $('download-header').addEventListener('click', () => { if (computed) download(computed.header, settings.outputFile, 'text/x-c++hdr'); });
 $('download-zip').addEventListener('click', async () => {
   if (!computed) return;
@@ -667,13 +740,6 @@ $('download-comparison').addEventListener('click', () => {
   downloadPng(compareImages(result.item.image, converted), `${stem(result.item.name)}-comparison.png`);
 });
 $('download-config').addEventListener('click', () => download(serializeConfig(), '.imagesconfig', 'text/plain'));
-$('download-report').addEventListener('click', () => { if (computed) download(`${JSON.stringify(computed.report, null, 2)}\n`, 'report.json', 'application/json'); });
-$('import-config').addEventListener('click', () => input('config-file').click());
-input('config-file').addEventListener('change', async () => {
-  const file = input('config-file').files?.[0]; if (!file) return;
-  try { importConfig(await file.text()); } catch (error) { setStatus(t('status.error', { message: /** @type {Error} */ (error).message }), true); }
-  input('config-file').value = '';
-});
 select('language').addEventListener('input', async () => { await setLocale(select('language').value); applyLanguage(); applySettingsToControls(); renderAll(); });
 
 function applyLanguage() {

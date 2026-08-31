@@ -556,10 +556,12 @@ UI framework なしの静的アプリを GitHub Pages で配信する。単一�
 3. 一覧で寸法、元色数、alpha、候補形式、変換後容量を比較する。
 4. 画像を選び、共通設定を画像単位で上書きしてプレビューする。
 5. TinyGFX では全画像を集合最適化し、画像別最小との差を確認する。
-6. project ZIP、project `.h`、選択画像の`.h`、変換後／左右比較PNG、`.imagesconfig`、JSON reportをdownloadする。
+6. 元画像を含むproject ZIP、project `.h`、`.imagesconfig`をproject file欄からdownloadする。選択画像の
+   `.h`と変換後／左右比較PNGは、選択画像panelからdownloadする。report JSONはZIPに含め、単独buttonは置かない。
+7. 保存したproject ZIPをdropして、設定と`images/`内の元画像をworkspaceへ復元できる。
 
 1 枚だけ投入した場合も同じ画面を簡易モードとして使える。別の「お試し専用画面」は
-作らず、初期状態では基本項目だけを見せる。
+作らず、同じworkspaceをそのまま使う。
 
 ### 12.2 設定の階層
 
@@ -583,8 +585,8 @@ project 共通に向く項目:
 `mode` は利用者向けの入口で、選択した target に不可能な形式を隠す。実際の format は
 advanced 欄で確認・固定できる。`auto` は画質制約を満たす候補だけから選ぶ。
 
-最初から全項目を並べない。通常表示はtarget、mode、色数、dither、透過までとし、decoder cost、
-1bpp preference、`aligned-vblit`、symbol prefix、header名はadvancedに畳む。
+project共通設定は全項目を常時表示する。項目数が少なく、畳むことで設定の存在を見落とす方が問題に
+なるため、decoder cost、1bpp preference、`aligned-vblit`、symbol prefix、header名も同じcard内に置く。
 
 ### 12.3 比較表示と出力
 
@@ -594,7 +596,8 @@ advanced 欄で確認・固定できる。`auto` は画質制約を満たす候�
 UI専用変換を作らない。実寸表示、任意背景色、MSE / PSNRは将来拡張とする。
 
 設定exportはproject defaultとoverrideを`.imagesconfig`へ書く。再importすると同じ選択状態と
-出力byte列を再現する。project ZIPにはbundle header、設定、report、変換後／比較PNGを収録する。
+出力byte列を再現する。project ZIPには`images/`配下の元画像、bundle header、設定、report、
+変換後／比較PNGを収録する。WebはこのZIPを再importでき、`images/`だけを入力として復元する。
 
 i18n、ロケール検査、サイト生成、Pages workflow は `LGFXFontToolJs` と同じ構造を使う。
 初期ロケールは `en` / `ja`。中国語追加は辞書追加だけで済む構造にする。

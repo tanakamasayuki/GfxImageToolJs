@@ -67,8 +67,11 @@ TinyGFX `auto` compares:
 `bitmap1h` and `bitmap1v` reuse the generic `bitmap1-msb` and `bitmap1-vertical` byte layouts.
 TinyGFX adds the `CellImage` wrapper and matching ops; they are not separate bit encoders.
 
-Images with more than two colors are not silently degraded to 1bpp. Add `--monochrome` or select
-`mode = monochrome` to admit those candidates, then inspect threshold and dithering results.
+TinyGFX bitmap decoding draws palette entry 1 and treats zero bits as “preserve the destination”; it
+does not draw two opaque palette colors. Automatic selection therefore admits bitmap only for one
+visible source color, optionally with transparency. Even a two-color opaque image stays in a color
+format such as `rlepal4`. Add `--monochrome` or select `mode = monochrome` only when that deliberate
+background/foreground conversion is wanted, then inspect threshold and dithering results.
 
 ## Why optimize an image set?
 

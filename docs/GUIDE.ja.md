@@ -65,11 +65,27 @@ displayの製品名を選ぶ欄ではありません。
 2. 使用する描画ライブラリを「出力先ライブラリ」で選びます。
 3. 「色の扱い」は「自動」、画素データ形式は最初に表示された推奨値から始めます。
 4. 変換後previewで、色、輪郭、透明部分を確認します。
-5. 「プロジェクトZIPをdownload」でheader、設定、report、previewをまとめて保存します。
+5. 「プロジェクトZIPをdownload」で元画像、header、設定、report、previewをまとめて保存します。
 6. 個別に必要ならproject `.h`や`.imagesconfig`もdownloadできます。
 
 既存の`.imagesconfig`は画像と一緒でも、画像より先でもdropできます。画像別sectionは、対応する
 ファイル名の画像を後から追加した場合にも適用されます。
+Web版からdownloadしたproject ZIPをそのままdropして開き直すこともできます。`.imagesconfig`と
+`images/`内の元画像だけを復元し、生成物やpreviewを入力画像として追加しません。
+
+展開後に用途がわかるよう、ZIPは次の構成です。
+
+```text
+gfx-image-project/
+  .imagesconfig
+  images/          変換元画像
+  generated/       生成したC/C++ header
+  previews/        変換後／左右比較PNG
+  report.json
+```
+
+CLIは設定された`generated/`と`previews/`を入力走査から除外するため、`gfx-image-tool build .`で
+自分の生成物を再変換することはありません。
 
 複数画像を同時に入れて構いません。特にTinyGFXでは、画像をまとめて評価したほうが、
 プログラム全体で必要なデコーダを減らせる場合があります。

@@ -99,7 +99,11 @@ export function encodeTinyBitmap1(image, layout, options = {}) {
     ? Array.from(colors).filter((_, index) => !options.transparentMask?.[index])
     : Array.from(colors);
   const palette = Uint16Array.from(new Set(visibleColors).values()).sort();
-  if (palette.length > 2 && !options.force) return null;
+  // TinyGFX bitmap draws only bit 1 in palette[1]; bit 0 always preserves the destination.
+  // It can therefore encode one visible color (optionally plus transparency) exactly. Accepting
+  // two opaque colors would silently erase the lower color when a shared bitmap decoder becomes
+  // attractive. Explicit bitmap or monochrome selection sets force and deliberately permits it.
+  if (palette.length > 1 && !options.force) return null;
   /** @type {Uint8Array} */
   const bits = new Uint8Array(colors.length);
   if (palette.length <= 2) {

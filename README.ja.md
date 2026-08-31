@@ -26,11 +26,13 @@ Gfx Image Toolは、実際の変換後画素をpreviewし、互換性のあるta
 [Web版](https://tanakamasayuki.github.io/GfxImageToolJs/)を開き、1枚以上の画像を追加してtargetの
 描画libraryを選びます。原画と変換後を比較して、次をdownloadできます。
 
-- まとめた`.h`、設定、report、previewを収録したproject ZIP
+- `images/`配下の元画像、まとめた`.h`、設定、report、previewを収録した再生成可能なproject ZIP
 - projectの`.h`または選択画像のheader単体
 - 変換後PNGと左右比較PNG
 - CLIで再現するための`.imagesconfig`
-- 変換・最適化report JSON
+
+Web版は自身が出力したproject ZIPを再度開けます。archive内の`generated/`と`previews/`は設定済みの
+出力directoryなので、次回の入力走査から除外されます。
 
 project共通設定と画像別overrideに対応し、TinyGFXでは複数画像を集合として最適化します。
 
@@ -82,6 +84,8 @@ targetは`generic-c`、`adafruit-gfx`、`u8g2`、`lovyangfx`、`arduino-gfx`、`
 TinyGFXの`auto`は`raw565`、`rle565`、`rlepal4`、`bitmap1h`、`bitmap1v`を評価します。
 directoryとWeb projectでは画像を1枚ずつ選ばず、画像dataと使用decoder集合の固定costを合計して
 最小化します。sourceの透過は既定で、可視色と衝突しない抜き色として保持されます。
+TinyGFXのbitmap形式は前景1色だけを描き、0 bitは描画先の背景を残します。自動modeでは元画像を
+正確に保てる場合だけ候補にし、背景色／前景色への変換を意図する場合はmonochromeを明示します。
 
 ```cpp
 #include <TinyGFX/Image.h>

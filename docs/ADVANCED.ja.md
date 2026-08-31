@@ -66,8 +66,11 @@ TinyGFX targetの`auto`は次を比較します。
 `bitmap1h`と`bitmap1v`は、汎用の`bitmap1-msb`と`bitmap1-vertical`と同じbyte layoutです。
 TinyGFX固有なのは、同じデータを`CellImage`と対応するopsで包む部分です。
 
-3色以上の画像は、既定では勝手に1bppへ落としません。1bppの品質低下を許容して候補へ入れるには
-`--monochrome`または`mode = monochrome`を指定し、thresholdとditherを確認します。
+TinyGFXのbitmap decoderはpalette entry 1だけを描き、0 bitは「描画先をそのまま残す」という意味です。
+不透明な2色を両方描く形式ではありません。そのため自動選択でbitmapを候補にするのは、透過を含めても
+可視色が1色だけの場合です。不透明な2色画像は`rlepal4`などのcolor形式に残します。意図的に
+背景／前景へ変換するときだけ`--monochrome`または`mode = monochrome`を指定し、thresholdとditherを
+確認します。
 
 ## なぜ複数画像をまとめて最適化するのか
 

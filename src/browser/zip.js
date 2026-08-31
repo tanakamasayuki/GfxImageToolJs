@@ -83,3 +83,41 @@ export function createStoredZip(entries) {
   u32(endView, 12, central.length); u32(endView, 16, localOffset); u16(endView, 20, 0);
   return concat([...localChunks, central, end]);
 }
+
+/**
+ * Reads the uncompressed ZIPs produced by createStoredZip. Keeping this deliberately small avoids
+ * shipping a general archive dependency in the static web app.
+ * @param {Uint8Array} bytes
+ * @returns {{name: string, data: Uint8Array}[]}
+ */
+export function readStoredZip(bytes) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const decoder = new TextDecoder();
+  const entries = [];
+  let at = 0;
+  while (at + 4 <= bytes.length && view.getUint32(at, true) === 0x04034b50) {
+    if (at + 30 > bytes.length) throw new Error('Truncated ZIP local header.');
+    const flags = view.getUint16(at + 6, true);
+    const method = view.getUint16(at + 8, true);
+    const expectedCrc = view.getUint32(at + 14, true);
+    const compressedSize = view.getUint32(at + 18, true);
+    const size = view.getUint32(at + 22, true);
+    const nameLength = view.getUint16(at + 26, true);
+    const extraLength = view.getUint16(at + 28, true);
+    if (flags & 1) throw new Error('Encrypted ZIPs are not supported.');
+    if (flags & 8) throw new Error('ZIP data descriptors are not supported.');
+    if (method !== 0 || compressedSize !== size) throw new Error('Only uncompressed project ZIPs are supported.');
+    const nameAt = at + 30;
+    const dataAt = nameAt + nameLength + extraLength;
+    const end = dataAt + size;
+    if (end > bytes.length) throw new Error('Truncated ZIP entry.');
+    const name = decoder.decode(bytes.subarray(nameAt, nameAt + nameLength));
+    const data = Uint8Array.from(bytes.subarray(dataAt, end));
+    if (!name || name.startsWith('/') || name.includes('../') || name === '..') throw new Error(`Unsafe ZIP entry: ${name}`);
+    if (crc32(data) !== expectedCrc) throw new Error(`ZIP checksum failed: ${name}`);
+    if (!name.endsWith('/')) entries.push({ name, data });
+    at = end;
+  }
+  if (!entries.length) throw new Error('No readable files were found in the project ZIP.');
+  return entries;
+}

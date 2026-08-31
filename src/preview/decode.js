@@ -65,8 +65,12 @@ export function decodeEncodedImage(encoded, options = {}) {
         : encoded.format === 'bitmap1-lsb'
           ? (encoded.data[y * encoded.stride + (x >> 3)] >> (x & 7)) & 1
           : (encoded.data[y * encoded.stride + (x >> 3)] >> (7 - (x & 7))) & 1;
-      const alpha = encoded.format === 'mask1-msb' || target === 'tinygfx' ? (bit ? 255 : 0) : 255;
-      put565(bit ? 0xffff : 0, pixels, p, alpha);
+      const tinyBitmap = target === 'tinygfx' && (encoded.format === 'bitmap1-msb' || encoded.format === 'bitmap1-vertical');
+      const alpha = encoded.format === 'mask1-msb' || tinyBitmap ? (bit ? 255 : 0) : 255;
+      const foreground = tinyBitmap && encoded.palette instanceof Uint16Array
+        ? encoded.palette[1] ?? 0xffff
+        : 0xffff;
+      put565(bit ? foreground : 0, pixels, p, alpha);
     }
     return createImage(encoded.width, encoded.height, pixels);
   }

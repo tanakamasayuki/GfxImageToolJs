@@ -65,11 +65,28 @@ previews, and configuration.
 2. Select the graphics library under `Output library`.
 3. Start with automatic color treatment and the initially suggested pixel format.
 4. Inspect the converted preview, especially edges and transparent areas.
-5. Choose `Download project ZIP` to save the header, configuration, report, and previews together.
+5. Choose `Download project ZIP` to save the source images, header, configuration, report, and
+   previews together.
 6. Download the project `.h` or `.imagesconfig` separately when needed.
 
 An existing `.imagesconfig` can be dropped with the images or before them. Per-image sections are
 also applied when a matching image is added later.
+You can also drop a project ZIP previously downloaded from the web app. It restores `.imagesconfig`
+and the originals under `images/`; generated and preview files are not added as inputs.
+
+The archive is arranged so its purpose is visible after extraction:
+
+```text
+gfx-image-project/
+  .imagesconfig
+  images/          original inputs
+  generated/       generated C/C++ header
+  previews/        converted and comparison PNGs
+  report.json
+```
+
+The CLI excludes the configured `generated/` and `previews/` directories while scanning, so
+`gfx-image-tool build .` does not recursively convert its own outputs.
 
 Adding several images at once is useful. For TinyGFX, the tool can then reduce total flash use by
 accounting for decoders shared by the whole image set.

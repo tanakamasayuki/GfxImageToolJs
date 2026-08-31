@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createImage,
+  decodeEncodedImage,
   emitCSource,
   encodeImage,
   encodeTinyBitmap1,
@@ -25,7 +26,7 @@ test('TinyGFX raw, RLE, palette RLE, and bitmap bytes are exact', () => {
   assert.ok(palette);
   assert.deepEqual([...palette.data], [0x11, 0x10]);
   assert.deepEqual([.../** @type {Uint16Array} */ (palette.palette)], [0x001f, 0xf800]);
-  assert.deepEqual([.../** @type {NonNullable<ReturnType<typeof encodeTinyBitmap1>>} */ (encodeTinyBitmap1(image, 'horizontal')).data], [0xc0]);
+  assert.deepEqual([.../** @type {NonNullable<ReturnType<typeof encodeTinyBitmap1>>} */ (encodeTinyBitmap1(image, 'horizontal', { force: true })).data], [0xc0]);
 });
 
 test('TinyGFX run splitting uses 255 and 16 pixel limits', () => {
@@ -61,8 +62,8 @@ test('optimizer evaluates the image set globally', () => {
 
 test('bitmap tie break follows preferBitmap', () => {
   const mono = createImage(8, 8, Uint8Array.from({ length: 8 * 8 * 4 }, (_, i) => i % 4 === 3 ? 255 : (Math.floor(i / 4) % 2) * 255));
-  assert.equal(optimizeTinyImage(mono, { allowedFormats: ['bitmap1h', 'bitmap1v'], preferBitmap: 'horizontal' }).format, 'bitmap1h');
-  assert.equal(optimizeTinyImage(mono, { allowedFormats: ['bitmap1h', 'bitmap1v'], preferBitmap: 'vertical' }).format, 'bitmap1v');
+  assert.equal(optimizeTinyImage(mono, { monochrome: true, allowedFormats: ['bitmap1h', 'bitmap1v'], preferBitmap: 'horizontal' }).format, 'bitmap1h');
+  assert.equal(optimizeTinyImage(mono, { monochrome: true, allowedFormats: ['bitmap1h', 'bitmap1v'], preferBitmap: 'vertical' }).format, 'bitmap1v');
 });
 
 test('TinyGFX emitter builds CellImage and ops reference', () => {
@@ -102,6 +103,46 @@ test('TinyGFX bitmap forces transparent pixels to zero', () => {
     .find((candidate) => candidate.format === 'bitmap1-msb');
   assert.deepEqual([.../** @type {Uint8Array} */ (bitmap?.data)], [0x80]);
   assert.equal(bitmap?.transparent, undefined);
+  const preview = decodeEncodedImage(/** @type {NonNullable<typeof bitmap>} */ (bitmap), { target: 'tinygfx' });
+  assert.deepEqual([...preview.pixels], [255, 255, 255, 255, 0, 0, 0, 0]);
+});
+
+test('TinyGFX auto never collapses two visible colors plus transparency into bitmap1', () => {
+  const pixels = [];
+  for (let i = 0; i < 16; i++) pixels.push(
+    ...(i % 3 === 0 ? [255, 0, 0, 255] : i % 3 === 1 ? [0, 0, 255, 255] : [0, 0, 0, 0]),
+  );
+  const colorAlpha = createImage(16, 1, pixels);
+  const candidates = encodeTinyCandidates(colorAlpha, { alphaThreshold: 128 });
+  assert.ok(candidates.some((candidate) => candidate.format === 'tinygfx-rlepal4'));
+  assert.ok(!candidates.some((candidate) => candidate.format === 'bitmap1-msb' || candidate.format === 'bitmap1-vertical'));
+
+  const mono = createImage(16, 1, Array.from({ length: 16 }, (_, i) => i % 2 ? [255, 255, 255, 255] : [0, 0, 0, 255]).flat());
+  const optimized = optimizeTinyImageSet([
+    { key: 'color-alpha', image: colorAlpha, alphaThreshold: 128 },
+    { key: 'mono', image: mono, monochrome: true },
+  ]);
+  assert.doesNotMatch(optimized.images.find((item) => item.key === 'color-alpha')?.format ?? '', /^bitmap1/);
+});
+
+test('TinyGFX auto never collapses two opaque colors into background plus foreground', () => {
+  const color = createImage(8, 1, [
+    255, 0, 0, 255, 0, 0, 255, 255, 255, 0, 0, 255, 0, 0, 255, 255,
+    255, 0, 0, 255, 0, 0, 255, 255, 255, 0, 0, 255, 0, 0, 255, 255,
+  ]);
+  const candidates = encodeTinyCandidates(color);
+  assert.ok(candidates.some((candidate) => candidate.format === 'tinygfx-rlepal4'));
+  assert.ok(!candidates.some((candidate) => candidate.format === 'bitmap1-msb' || candidate.format === 'bitmap1-vertical'));
+  const bitmap = createImage(8, 1, Array.from({ length: 8 }, (_, i) => i % 2 ? [255, 255, 255, 255] : [0, 0, 0, 255]).flat());
+  const optimized = optimizeTinyImageSet([{ key: 'color', image: color }, { key: 'bitmap', image: bitmap, monochrome: true }]);
+  assert.doesNotMatch(optimized.images.find((item) => item.key === 'color')?.format ?? '', /^bitmap1/);
+});
+
+test('TinyGFX forced incompatible format identifies the image', () => {
+  const pixels = [];
+  for (let i = 0; i < 17; i++) pixels.push(i * 15, 255 - i * 15, i * 7, 255);
+  const color = createImage(17, 1, pixels);
+  assert.throws(() => optimizeTinyImageSet([{ key: 'icons/color.png', image: color, allowedFormats: ['rlepal4'] }]), /icons\/color\.png/);
 });
 
 test('TinyGFX accepts an explicit non-colliding transparent color', () => {

@@ -8,6 +8,7 @@ import { createCanvas } from '@napi-rs/canvas';
 import {
   buildImageProject,
   buildImagesIgnoreMatcher,
+  collectImageEntries,
   createImagesConfig,
   parseImagesConfig,
   resolveImageConfig,
@@ -91,6 +92,19 @@ test('imagesignore supports directories, basenames, and reinclusion', () => {
   assert.equal(ignore.shouldIgnore('secret/a.png', false), true);
   assert.equal(ignore.shouldIgnore('secret/keep.png', false), false);
   assert.equal(ignore.shouldIgnore('.imagesconfig', false), true);
+});
+
+test('project input scan excludes configured generated and preview directories', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'gfx-image-scan-'));
+  await mkdir(join(root, 'images'));
+  await mkdir(join(root, 'generated'));
+  await mkdir(join(root, 'previews'));
+  await png(join(root, 'images', 'source.png'), ['#ff0000']);
+  await png(join(root, 'generated', 'stale.png'), ['#00ff00']);
+  await png(join(root, 'previews', 'source.png'), ['#0000ff']);
+  const config = parseImagesConfig('[general]\noutput_dir = generated\n[preview]\noutput_dir = previews\n');
+  const entries = await collectImageEntries(root, config);
+  assert.deepEqual(entries.map((entry) => entry.relative), ['images/source.png']);
 });
 
 test('project writes one header per image and check is read-only', async () => {

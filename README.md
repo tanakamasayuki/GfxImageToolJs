@@ -28,11 +28,14 @@ New to palettes, RGB565, dithering, or color keys? Start with the
 Open the [web app](https://tanakamasayuki.github.io/GfxImageToolJs/), add one or more images, select
 the target graphics library, compare original and converted previews, and download:
 
-- one project ZIP containing the bundled `.h`, configuration, report, and previews;
+- one rebuildable project ZIP containing original images under `images/`, the bundled `.h`,
+  configuration, report, and previews;
 - the bundled project `.h` or selected image header separately;
 - converted and side-by-side comparison PNGs;
-- `.imagesconfig` for CLI reproduction; and
-- a JSON conversion and optimization report.
+- `.imagesconfig` for CLI reproduction.
+
+The web app can reopen its own project ZIP. Inside the archive, `generated/` and `previews/` are
+configured output directories and are excluded from subsequent input scans.
 
 Project defaults and per-image overrides are supported. TinyGFX images are optimized as a set.
 
@@ -85,6 +88,9 @@ TinyGFX `auto` evaluates `raw565`, `rle565`, `rlepal4`, `bitmap1h`, and `bitmap1
 browser project minimizes image data plus the fixed cost of the decoder set, rather than selecting
 each image in isolation. Source transparency is preserved by default with an automatically selected,
 collision-free color key.
+TinyGFX bitmap formats draw one foreground color while zero bits preserve the destination. Automatic
+mode therefore uses them only when that operation preserves the source exactly; choose monochrome
+mode explicitly when background/foreground conversion is intended.
 
 ```cpp
 #include <TinyGFX/Image.h>

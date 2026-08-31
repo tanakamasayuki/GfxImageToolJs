@@ -52,16 +52,19 @@ export function optimizeTinyImageSet(inputs, options = {}) {
     ? ['raw565', 'rle565', 'rlepal4', 'bitmap1v', 'bitmap1h']
     : ['raw565', 'rle565', 'rlepal4', 'bitmap1h', 'bitmap1v'];
   const perImage = inputs.map((input) => {
-    const candidates = encodeTinyCandidates(input.image, { monochrome: input.monochrome, threshold: input.threshold, alphaThreshold: input.alphaThreshold, transparentColor: input.transparentColor, invert: input.invert, dither: input.dither });
+    const explicitlyBitmap = !!input.allowedFormats?.length && input.allowedFormats.every((format) => format === 'bitmap1h' || format === 'bitmap1v');
+    const candidates = encodeTinyCandidates(input.image, { monochrome: input.monochrome || explicitlyBitmap, threshold: input.threshold, alphaThreshold: input.alphaThreshold, transparentColor: input.transparentColor, invert: input.invert, dither: input.dither });
     if (input.allowedFormats) for (const format of input.allowedFormats) {
       if (!TINYGFX_CANDIDATES.includes(format)) throw new Error(`Unknown TinyGFX candidate: ${format}`);
     }
+    const filtered = new Map(candidates.flatMap((encoded) => {
+      const id = tinyCandidateId(encoded);
+      return !input.allowedFormats || input.allowedFormats.includes(id) ? [[id, encoded]] : [];
+    }));
+    if (!filtered.size) throw new Error(`${input.key}: no allowed TinyGFX format can encode this image.`);
     return {
       input,
-      candidates: new Map(candidates.flatMap((encoded) => {
-        const id = tinyCandidateId(encoded);
-        return !input.allowedFormats || input.allowedFormats.includes(id) ? [[id, encoded]] : [];
-      })),
+      candidates: filtered,
     };
   });
   /** @type {null | {images: {key: string, format: string, encoded: EncodedImage, bytes: number}[], formats: string[], dataBytes: number, decoderBytes: number, totalBytes: number}} */

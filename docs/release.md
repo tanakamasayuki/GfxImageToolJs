@@ -13,8 +13,10 @@ from a maintainer workstation.
 3. Exercise representative CLI paths: one image, a directory bundle, transparency, previews, and
    `--check`.
 4. Open the web app in a Chromium browser and Firefox. Check multiple images, same-name replacement,
-   transparency and backgrounds, converted previews, the project ZIP and every download,
-   configuration drop/import/export, and both locales.
+   transparency and backgrounds, converted previews, downloads, configuration drop/export, and both
+   locales. Download a project ZIP, verify its `images/`, `generated/`, and `previews/` structure,
+   then drop that ZIP back into a fresh page and confirm the project and settings are restored without
+   treating preview PNGs as inputs.
 5. After pushing `main`, open <https://tanakamasayuki.github.io/GfxImageToolJs/> directly. Confirm
    that the deployed build has no missing assets or stale-cache behavior.
 
