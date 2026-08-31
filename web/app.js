@@ -1,7 +1,9 @@
 // @ts-check
 import {
   compositeAlpha,
+  compareImages,
   decodeBrowserImage,
+  decodeEncodedImage,
   emitCBundle,
   emitCSource,
   encodeImage,
@@ -295,7 +297,7 @@ function renderEditor() {
   select('override-dither').value = item.override.dither ?? '';
   drawPreview(/** @type {HTMLCanvasElement} */ ($('original-preview')), item.image);
   const converted = computed?.images.find((entry) => entry.item.id === item.id);
-  if (converted) drawPreview(/** @type {HTMLCanvasElement} */ ($('converted-preview')), decodeEncoded(converted.encoded, settings.target));
+  if (converted) drawPreview(/** @type {HTMLCanvasElement} */ ($('converted-preview')), decodeEncodedImage(converted.encoded, { target: settings.target }));
 }
 
 /** @param {HTMLCanvasElement} canvas @param {import('../src/model/image.js').GfxImage} image */
@@ -313,52 +315,6 @@ function drawPreview(canvas, image) {
     for (let x = 0; x <= image.width; x++) { context.beginPath(); context.moveTo(x * zoom + .5, 0); context.lineTo(x * zoom + .5, canvas.height); context.stroke(); }
     for (let y = 0; y <= image.height; y++) { context.beginPath(); context.moveTo(0, y * zoom + .5); context.lineTo(canvas.width, y * zoom + .5); context.stroke(); }
   }
-}
-
-/** @param {import('../src/format/registry.js').EncodedImage} encoded @param {string} target */
-function decodeEncoded(encoded, target) {
-  const count = encoded.width * encoded.height;
-  const colors = new Uint16Array(count);
-  const palette = encoded.palette instanceof Uint16Array ? encoded.palette : undefined;
-  if (encoded.format === 'tinygfx-raw565') {
-    for (let p = 0; p < count; p++) colors[p] = (encoded.data[p * 2] << 8) | encoded.data[p * 2 + 1];
-  } else if (encoded.format === 'tinygfx-rle565') {
-    let at = 0; let p = 0;
-    while (at < encoded.data.length) { const run = encoded.data[at++]; const color = (encoded.data[at++] << 8) | encoded.data[at++]; colors.fill(color, p, p += run); }
-  } else if (encoded.format === 'tinygfx-rlepal4' && palette) {
-    let p = 0;
-    for (const byte of encoded.data) { const run = (byte >> 4) + 1; colors.fill(palette[byte & 15], p, p += run); }
-  }
-  const pixels = new Uint8Array(count * 4);
-  for (let p = 0; p < count; p++) {
-    let color = colors[p]; let alpha = 255;
-    if (encoded.format === 'bitmap1-msb' || encoded.format === 'bitmap1-lsb' || encoded.format === 'bitmap1-vertical' || encoded.format === 'mask1-msb') {
-      const x = p % encoded.width; const y = Math.floor(p / encoded.width);
-      const bit = encoded.format === 'bitmap1-vertical'
-        ? (encoded.data[(y >> 3) * encoded.width + x] >> (y & 7)) & 1
-        : encoded.format === 'bitmap1-lsb'
-          ? (encoded.data[y * encoded.stride + (x >> 3)] >> (x & 7)) & 1
-          : (encoded.data[y * encoded.stride + (x >> 3)] >> (7 - (x & 7))) & 1;
-      color = palette?.[bit] ?? (bit ? 0xffff : 0x0000);
-      alpha = encoded.format === 'mask1-msb' ? (bit ? 255 : 0) : target === 'tinygfx' && !bit ? 0 : 255;
-    } else if (!encoded.format.startsWith('tinygfx-')) {
-      const at = p * ({ rgb888: 3, rgb565le: 2, rgb565be: 2 }[encoded.format] ?? 1);
-      if (encoded.format === 'rgb565be') color = (encoded.data[at] << 8) | encoded.data[at + 1];
-      else if (encoded.format === 'rgb565le') color = encoded.data[at] | (encoded.data[at + 1] << 8);
-      else if (encoded.format === 'rgb888') {
-        pixels[p * 4] = encoded.data[at]; pixels[p * 4 + 1] = encoded.data[at + 1]; pixels[p * 4 + 2] = encoded.data[at + 2]; pixels[p * 4 + 3] = 255; continue;
-      } else if (encoded.format === 'gray8') { const value = encoded.data[p]; pixels.fill(value, p * 4, p * 4 + 3); pixels[p * 4 + 3] = 255; continue; }
-      else if (encoded.format === 'rgb332') { const value = encoded.data[p]; pixels[p * 4] = Math.round(((value >> 5) & 7) * 255 / 7); pixels[p * 4 + 1] = Math.round(((value >> 2) & 7) * 255 / 7); pixels[p * 4 + 2] = (value & 3) * 85; pixels[p * 4 + 3] = 255; continue; }
-      else if (encoded.format === 'indexed8' && encoded.palette instanceof Uint8Array) { const index = encoded.data[p] * 3; pixels[p * 4] = encoded.palette[index]; pixels[p * 4 + 1] = encoded.palette[index + 1]; pixels[p * 4 + 2] = encoded.palette[index + 2]; pixels[p * 4 + 3] = 255; continue; }
-    }
-    if (encoded.transparent?.kind === 'color' && color === encoded.transparent.value) alpha = 0;
-    if (encoded.transparent?.kind === 'palette-index' && palette?.indexOf(color) === encoded.transparent.value) alpha = 0;
-    pixels[p * 4] = ((color >> 11) & 31) * 255 / 31;
-    pixels[p * 4 + 1] = ((color >> 5) & 63) * 255 / 63;
-    pixels[p * 4 + 2] = (color & 31) * 255 / 31;
-    pixels[p * 4 + 3] = alpha;
-  }
-  return /** @type {import('../src/model/image.js').GfxImage} */ ({ width: encoded.width, height: encoded.height, pixels, colorSpace: 'srgb', alphaMode: 'straight' });
 }
 
 function renderReport() {
@@ -382,6 +338,8 @@ function renderAll() {
   renderImageList(); renderEditor(); renderReport();
   /** @type {HTMLButtonElement} */ ($('download-header')).disabled = !computed;
   /** @type {HTMLButtonElement} */ ($('download-selected')).disabled = !computed || !selectedItem();
+  /** @type {HTMLButtonElement} */ ($('download-converted')).disabled = !computed || !selectedItem();
+  /** @type {HTMLButtonElement} */ ($('download-comparison')).disabled = !computed || !selectedItem();
   /** @type {HTMLButtonElement} */ ($('download-report')).disabled = !computed;
 }
 
@@ -390,6 +348,14 @@ function download(content, name, type) {
   const url = URL.createObjectURL(new Blob([content], { type }));
   const anchor = document.createElement('a'); anchor.href = url; anchor.download = name; anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+/** @param {import('../src/model/image.js').GfxImage} image @param {string} name */
+function downloadPng(image, name) {
+  const canvas = document.createElement('canvas');
+  canvas.width = image.width; canvas.height = image.height;
+  canvas.getContext('2d')?.putImageData(new ImageData(new Uint8ClampedArray(image.pixels), image.width, image.height), 0, 0);
+  canvas.toBlob((blob) => { if (blob) download(blob, name, 'image/png'); }, 'image/png');
 }
 
 function serializeConfig() {
@@ -479,6 +445,15 @@ $('download-selected').addEventListener('click', () => {
   const result = computed?.images.find((entry) => entry.item.id === selectedId); if (!result) return;
   const source = emitCSource(result.encoded, settings.target, { name: result.symbol }).source;
   download(source, `${stem(result.item.name)}.h`, 'text/x-c++hdr');
+});
+$('download-converted').addEventListener('click', () => {
+  const result = computed?.images.find((entry) => entry.item.id === selectedId); if (!result) return;
+  downloadPng(decodeEncodedImage(result.encoded, { target: settings.target }), `${stem(result.item.name)}-converted.png`);
+});
+$('download-comparison').addEventListener('click', () => {
+  const result = computed?.images.find((entry) => entry.item.id === selectedId); if (!result) return;
+  const converted = decodeEncodedImage(result.encoded, { target: settings.target });
+  downloadPng(compareImages(result.item.image, converted), `${stem(result.item.name)}-comparison.png`);
 });
 $('download-config').addEventListener('click', () => download(serializeConfig(), '.imagesconfig', 'text/plain'));
 $('download-report').addEventListener('click', () => { if (computed) download(`${JSON.stringify(computed.report, null, 2)}\n`, 'report.json', 'application/json'); });

@@ -12,3 +12,5 @@
 - (JA) directory projectの既定出力をheader 1本へまとめ、任意のsplit modeとsymbol衝突検査を追加。
 - (EN) Add a private, multi-image browser workspace with live previews, per-image overrides, TinyGFX set reports, configuration import/export, and Pages deployment.
 - (JA) 画像をuploadしない複数画像Web workspace、live preview、画像別override、TinyGFX集合report、設定import/export、Pages配信を追加。
+- (EN) Fix TinyGFX directory builds defaulting to forced raw565, and add converted/comparison PNG exports to CLI and web.
+- (JA) TinyGFX directory buildがraw565固定になる既定値を修正し、CLI/Webへ変換後・左右比較PNG出力を追加。

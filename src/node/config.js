@@ -93,13 +93,14 @@ export function parseImagesConfig(text) {
   if (outputMode !== 'bundle' && outputMode !== 'split') throw new Error(`Unknown output_mode: ${outputMode}`);
   const preferBitmap = optimize.prefer_bitmap || (alignedVblit ? 'vertical' : 'horizontal');
   if (preferBitmap !== 'horizontal' && preferBitmap !== 'vertical') throw new Error(`Unknown prefer_bitmap: ${preferBitmap}`);
+  const target = general.target || 'generic-c';
   return {
     general: {
       outputDir: general.output_dir || 'generated',
       outputMode: /** @type {'bundle'|'split'} */ (outputMode),
       outputFile: general.output_file || 'images.h',
       prefix: general.prefix || '',
-      target: general.target || 'generic-c',
+      target,
       indexHeader: general.index_header || '',
     },
     input: {
@@ -107,7 +108,7 @@ export function parseImagesConfig(text) {
         .split(',').map((part) => part.trim()).filter(Boolean),
     },
     color: {
-      format: color.format || 'rgb565be',
+      format: color.format || (target === 'tinygfx' ? 'auto' : 'rgb565be'),
       mode: /** @type {'auto'|'monochrome'|'grayscale'|'indexed'|'true-color'} */ (colorMode),
       colors: integer(color.colors, 256, 2, 256, 'color.colors'),
       dither: /** @type {Dither} */ (dither),

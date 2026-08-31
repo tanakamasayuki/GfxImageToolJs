@@ -24,6 +24,7 @@ gfx-image-tool init ./images
 gfx-image-tool build ./images
 gfx-image-tool inspect ./images
 gfx-image-tool build ./images --check
+gfx-image-tool build ./images --target tinygfx --preview ./previews --preview-layout comparison
 ```
 
 `--check`はファイルを書き換えず、欠落または差分があれば終了コード2を返します。
@@ -32,7 +33,7 @@ gfx-image-tool build ./images --check
 
 複数画像を1projectとして扱うWeb workspaceもあります。画像はuploadせずブラウザ内だけで
 decode・変換します。共通設定と画像別override、原画／変換後preview、TinyGFX集合最適化、
-project `.h`、`.imagesconfig`、JSON reportのdownloadに対応しています。
+project `.h`、変換後／左右比較PNG、`.imagesconfig`、JSON reportのdownloadに対応しています。
 
 ```sh
 npm run serve

@@ -12,8 +12,8 @@ import { optimizeTinyImageSet } from '../optimize/tinygfx.js';
 
 /** @typedef {import('./config.js').ImagesConfig} ImagesConfig */
 /** @typedef {{relative: string, absolute: string}} ImageEntry */
-/** @typedef {{entry: ImageEntry, effective: ReturnType<typeof resolveImageConfig>, image: import('../model/image.js').GfxImage, symbol: string, output: string}} PreparedImage */
-/** @typedef {{input: string, relative: string, output: string, symbol: string, format: string, source: string, encoded: import('../format/registry.js').EncodedImage, dataBytes: number, paletteBytes: number}} BuiltImage */
+/** @typedef {{entry: ImageEntry, effective: ReturnType<typeof resolveImageConfig>, original: import('../model/image.js').GfxImage, image: import('../model/image.js').GfxImage, symbol: string, output: string}} PreparedImage */
+/** @typedef {{input: string, relative: string, output: string, symbol: string, target: string, format: string, source: string, original: import('../model/image.js').GfxImage, prepared: import('../model/image.js').GfxImage, encoded: import('../format/registry.js').EncodedImage, dataBytes: number, paletteBytes: number}} BuiltImage */
 
 /** @param {string} path */
 async function optionalText(path) {
@@ -84,8 +84,16 @@ export async function buildImageProject(projectDir, options = {}) {
   const config = parseImagesConfig(await optionalText(join(root, '.imagesconfig')));
   if (options.outputDir !== undefined) config.general.outputDir = options.outputDir;
   if (options.prefix !== undefined) config.general.prefix = options.prefix;
-  if (options.target !== undefined) config.general.target = options.target;
+  if (options.target !== undefined) {
+    const changedToTinyGfx = options.target === 'tinygfx' && config.general.target !== 'tinygfx';
+    config.general.target = options.target;
+    if (changedToTinyGfx && options.format === undefined) config.color.format = 'auto';
+  }
   if (options.format !== undefined) config.color.format = options.format;
+  else if (config.general.target === 'tinygfx' && config.color.format === 'rgb565be') {
+    // Older configs inherited the generic target's default. TinyGFX's actual default is set optimization.
+    config.color.format = 'auto';
+  }
   if (options.mode !== undefined) config.color.mode = options.mode;
   if (options.colors !== undefined) config.color.colors = options.colors;
   if (options.dither !== undefined) config.color.dither = options.dither;
@@ -107,7 +115,8 @@ export async function buildImageProject(projectDir, options = {}) {
   const symbols = new Map();
   for (const entry of entries) {
     const effective = resolveImageConfig(config, entry.relative);
-    let image = await decodeImageFile(entry.absolute);
+    const original = await decodeImageFile(entry.absolute);
+    let image = original;
     if (effective.alpha.mode === 'none') image = transformImage(image, { alpha: { mode: 'none', matte: effective.alpha.matte } });
     if (effective.color.mode === 'grayscale') image = grayscaleImage(image);
     if (effective.color.mode === 'indexed') {
@@ -125,7 +134,7 @@ export async function buildImageProject(projectDir, options = {}) {
       : (effective.output || headerRelative(entry.relative)).replaceAll('\\', '/');
     const output = config.general.outputMode === 'bundle' ? bundleOutput : resolve(outputRoot, relativeOutput);
     if (!inside(outputRoot, output)) throw new Error(`Image output escapes output_dir: ${relativeOutput}`);
-    prepared.push({ entry, effective, image, symbol, output });
+    prepared.push({ entry, effective, original, image, symbol, output });
   }
   const tinyInputs = prepared.filter((item) => item.effective.general.target === 'tinygfx');
   const tinyOptimization = tinyInputs.length ? optimizeTinyImageSet(tinyInputs.map((item) => ({
@@ -154,7 +163,7 @@ export async function buildImageProject(projectDir, options = {}) {
   /** @type {BuiltImage[]} */
   const images = [];
   for (const item of prepared) {
-    const { entry, effective, image, symbol, output } = item;
+    const { entry, effective, original, image, symbol, output } = item;
     const tinyChoice = tinyChoices.get(entry.relative);
     const encoded = tinyChoice?.encoded ?? encodeImage(image, effective.color.format, {
       threshold: effective.color.threshold, invert: effective.color.invert,
@@ -172,8 +181,11 @@ export async function buildImageProject(projectDir, options = {}) {
       relative: entry.relative,
       output,
       symbol,
+      target: effective.general.target,
       format: tinyChoice?.format ?? effective.color.format,
       source: emitted.source,
+      original,
+      prepared: image,
       encoded,
       dataBytes: encoded.stats.dataBytes,
       paletteBytes: encoded.stats.paletteBytes,

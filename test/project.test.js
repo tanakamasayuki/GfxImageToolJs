@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createCanvas } from '@napi-rs/canvas';
 import {
+  buildImageProject,
   buildImagesIgnoreMatcher,
   createImagesConfig,
   parseImagesConfig,
@@ -146,6 +147,18 @@ prefer_bitmap = horizontal
   assert.match(bundle, /const CellImage red/);
   assert.match(bundle, /const CellImage blue/);
   assert.equal(built.results.length, 1);
+});
+
+test('TinyGFX project defaults to auto and reports the same individual minimum as a one-image optimization', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'gfx-image-tiny-auto-'));
+  await png(join(root, 'flat.png'), Array(32).fill('#ff0000'));
+  await writeFile(join(root, '.imagesconfig'), '[general]\ntarget = tinygfx\n[color]\nformat = rgb565be\n');
+  const built = await buildImageProject(root);
+  assert.equal(built.config.color.format, 'auto');
+  assert.ok(built.optimization);
+  assert.equal(built.optimization.report[0].candidates.length, 5);
+  assert.equal(built.optimization.report[0].individualMinimum.format, 'rle565');
+  assert.equal(built.images[0].format, 'rle565');
 });
 
 test('TinyGFX project preserves alpha through CellImage transparency', async () => {

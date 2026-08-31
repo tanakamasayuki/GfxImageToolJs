@@ -45,6 +45,8 @@
   "export.title": "Export",
   "export.header": "Download project .h",
   "export.selected": "Download selected .h",
+  "export.converted": "Download converted PNG",
+  "export.comparison": "Download comparison PNG",
   "export.config": "Download .imagesconfig",
   "export.import": "Import .imagesconfig",
   "export.report": "Download report.json",

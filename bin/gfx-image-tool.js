@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // @ts-check
 import { readFileSync } from 'node:fs';
-import { readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { buildImageProject, createImagesConfig, decodeImageFile, writeImageProject } from '../src/node/index.js';
-import { emitCSource, encodeImage, grayscaleImage, inspectImage, listFormats, listTargets, optimizeTinyImage, reduceImageColors, rgb565, transformImage } from '../src/index.js';
+import { buildImageProject, createImagesConfig, decodeImageFile, encodePreviewPng, writeImageProject } from '../src/node/index.js';
+import { decodeEncodedImage, emitCSource, encodeImage, grayscaleImage, inspectImage, listFormats, listTargets, optimizeTinyImage, reduceImageColors, rgb565, transformImage } from '../src/index.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const VERSION = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).version;
@@ -20,6 +20,8 @@ const USAGE = `gfx-image-tool — convert images into embedded C/C++ assets
 
 options
   --out <path>          output header for a file, output directory for a project
+  --preview <path>      converted PNG for a file, preview directory for a project
+  --preview-layout <id> converted (default) or comparison (source | converted)
   --target <id>         ${listTargets().join(', ')}
   --format <id>         ${listFormats().join(', ')}
   --mode <mode>         auto, monochrome, grayscale, indexed, true-color
@@ -48,6 +50,8 @@ class CliError extends Error {
 
 const OPTIONS = /** @type {const} */ ({
   out: { type: 'string' },
+  preview: { type: 'string' },
+  'preview-layout': { type: 'string' },
   target: { type: 'string' },
   format: { type: 'string' },
   mode: { type: 'string' },
@@ -109,7 +113,7 @@ async function run(command, argv) {
   if (parsed.positionals.length > 1) throw new CliError(`${command} accepts one path.`, 3);
   const input = resolve(parsed.positionals[0] ?? '.');
   if (command === 'init') {
-    if (parsed.values.format || parsed.values.name || parsed.values.prefix || parsed.values.check) throw new CliError('init accepts only --json and --help.', 3);
+    if (parsed.values.format || parsed.values.name || parsed.values.prefix || parsed.values.check || parsed.values.preview || parsed.values['preview-layout']) throw new CliError('init accepts only --json and --help.', 3);
     const result = await createImagesConfig(input);
     if (parsed.values.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     else console.error(`${result.path}  ${result.status === 'created' ? 'created' : 'already exists (unchanged)'}`);
@@ -140,6 +144,9 @@ async function run(command, argv) {
   const matte = parseMatte(parsed.values.matte);
   const transparentColor = parseTransparentColor(parsed.values['transparent-color']);
   if (matte && transparentColor !== undefined) throw new CliError('--matte and --transparent-color cannot be used together.', 3);
+  const previewLayout = parsed.values['preview-layout'] ?? 'converted';
+  if (previewLayout !== 'converted' && previewLayout !== 'comparison') throw new CliError('--preview-layout must be converted or comparison.', 3);
+  if (parsed.values['preview-layout'] !== undefined && parsed.values.preview === undefined) throw new CliError('--preview-layout requires --preview.', 3);
   if (info.isDirectory()) {
     const projectOptions = {
       outputDir: parsed.values.out,
@@ -160,6 +167,7 @@ async function run(command, argv) {
       check: !!parsed.values.check,
     };
     if (command === 'inspect') {
+      if (parsed.values.preview !== undefined) throw new CliError('--preview is only available with build.', 3);
       const built = await buildImageProject(input, projectOptions);
       const result = {
         root: built.root,
@@ -200,6 +208,12 @@ async function run(command, argv) {
     if (command !== 'build') throw new CliError(`unknown command: ${command}`, 3);
     const built = await writeImageProject(input, projectOptions);
     if (!built.images.length) throw new CliError(`no matching images in ${input}`, 1);
+    const previews = parsed.values.preview ? await writeProjectPreviews(
+      built,
+      resolve(parsed.values.preview),
+      /** @type {'converted'|'comparison'} */ (previewLayout),
+      !!parsed.values.check,
+    ) : [];
     const result = {
       root: built.root,
       outputRoot: built.outputRoot,
@@ -213,16 +227,21 @@ async function run(command, argv) {
         vblit: built.optimization.vblit,
       } : undefined,
       results: built.results.map((item) => ({ ...item, path: relative(built.root, item.path).replaceAll('\\', '/') })),
+      previews: previews.map((item) => ({ ...item, path: relative(built.root, item.path).replaceAll('\\', '/') })),
     };
     if (parsed.values.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-    else for (const item of result.results) console.error(`${item.path}  ${item.status}`);
-    if (built.results.some((item) => item.status === 'mismatch' || item.status === 'missingOutput')) {
+    else {
+      for (const item of result.results) console.error(`${item.path}  ${item.status}`);
+      for (const item of result.previews) console.error(`${item.path}  ${item.status}  preview`);
+    }
+    if ([...built.results, ...previews].some((item) => item.status === 'mismatch' || item.status === 'missingOutput')) {
       throw new CliError('--check: generated output differs or does not exist', 2);
     }
     return;
   }
   if (!info.isFile()) throw new CliError(`not a file or directory: ${input}`, 1);
-  let image = await decodeImageFile(input);
+  const original = await decodeImageFile(input);
+  let image = original;
   if (matte) image = transformImage(image, { alpha: { mode: 'none', matte } });
   if (mode === 'grayscale') image = grayscaleImage(image);
   if (mode === 'indexed') {
@@ -231,6 +250,7 @@ async function run(command, argv) {
   }
   const target = parsed.values.target ?? 'generic-c';
   if (command === 'inspect') {
+    if (parsed.values.preview !== undefined) throw new CliError('--preview is only available with build.', 3);
     const inspected = inspectImage(image, {
       threshold,
       alphaThreshold,
@@ -306,6 +326,13 @@ async function run(command, argv) {
     }
     status = previous === undefined ? 'missingOutput' : previous === emitted.source ? 'upToDate' : 'mismatch';
   } else await writeFile(output, emitted.source, 'utf8');
+  let preview;
+  if (parsed.values.preview) {
+    const previewPath = resolve(parsed.values.preview);
+    const converted = decodeEncodedImage(encoded, { target });
+    const bytes = await encodePreviewPng(original, converted, /** @type {'converted'|'comparison'} */ (previewLayout));
+    preview = await writeBinaryOutput(previewPath, bytes, !!parsed.values.check);
+  }
   const result = {
     input, output, name, target, format: tiny?.format ?? format, width: image.width, height: image.height,
     bytes: encoded.data.length + encoded.stats.paletteBytes, decoderBytes: tiny?.decoderBytes, totalBytes: tiny?.totalBytes,
@@ -315,10 +342,47 @@ async function run(command, argv) {
       genericBytes: 408,
     } : undefined,
     status,
+    ...(preview ? { preview } : {}),
   };
   if (parsed.values.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-  else console.error(`${output}  ${status}  ${tiny?.format ?? format}  ${encoded.data.length} B  (${image.width}x${image.height})`);
-  if (status === 'missingOutput' || status === 'mismatch') throw new CliError('--check: generated output differs or does not exist', 2);
+  else {
+    console.error(`${output}  ${status}  ${tiny?.format ?? format}  ${encoded.data.length} B  (${image.width}x${image.height})`);
+    if (preview) console.error(`${preview.path}  ${preview.status}  preview`);
+  }
+  if (status === 'missingOutput' || status === 'mismatch' || preview?.status === 'missingOutput' || preview?.status === 'mismatch') throw new CliError('--check: generated output differs or does not exist', 2);
+}
+
+/** @param {string} path @param {Uint8Array} bytes @param {boolean} check */
+async function writeBinaryOutput(path, bytes, check) {
+  let previous;
+  try { previous = await readFile(path); } catch (error) {
+    if (/** @type {NodeJS.ErrnoException} */ (error).code !== 'ENOENT') throw error;
+  }
+  const same = previous !== undefined && Buffer.from(previous).equals(Buffer.from(bytes));
+  const status = previous === undefined ? 'missingOutput' : same ? 'upToDate' : 'mismatch';
+  if (!check) {
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, bytes);
+    return { path, status: /** @type {const} */ ('written') };
+  }
+  return { path, status: /** @type {'upToDate'|'mismatch'|'missingOutput'} */ (status) };
+}
+
+/**
+ * @param {Awaited<ReturnType<typeof writeImageProject>>} built
+ * @param {string} directory
+ * @param {'converted'|'comparison'} layout
+ * @param {boolean} check
+ */
+async function writeProjectPreviews(built, directory, layout, check) {
+  const outputs = [];
+  for (const item of built.images) {
+    const converted = decodeEncodedImage(item.encoded, { target: item.target });
+    const bytes = await encodePreviewPng(item.original, converted, layout);
+    const relativePng = item.relative.slice(0, item.relative.length - extname(item.relative).length) + '.png';
+    outputs.push(await writeBinaryOutput(resolve(directory, relativePng), bytes, check));
+  }
+  return outputs;
 }
 
 /** @param {string} format */

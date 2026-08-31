@@ -89,3 +89,32 @@ test('CLI builds an auto-selected TinyGFX CellImage', async () => {
   assert.equal(report.optimization.format, 'rle565');
   assert.ok(report.optimization.image.candidates.some((/** @type {{format: string}} */ candidate) => candidate.format === 'raw565'));
 });
+
+test('CLI directory TinyGFX override keeps auto candidates and matches one-image selection', async () => {
+  const { dir } = await fixture();
+  const flat = join(dir, 'flat.png');
+  const canvas = createCanvas(32, 1);
+  const context = canvas.getContext('2d');
+  context.fillStyle = '#ff0000';
+  context.fillRect(0, 0, 32, 1);
+  await writeFile(flat, await canvas.encode('png'));
+  const single = JSON.parse((await exec(process.execPath, [cli, 'inspect', flat, '--target', 'tinygfx', '--json'])).stdout);
+  const project = JSON.parse((await exec(process.execPath, [cli, 'inspect', dir, '--target', 'tinygfx', '--json'])).stdout);
+  const row = project.optimization.images.find((/** @type {{key: string}} */ item) => item.key === 'flat.png');
+  assert.equal(row.candidates.length, single.optimization.image.candidates.length);
+  assert.deepEqual(row.individualMinimum, single.optimization.image.individualMinimum);
+  assert.notEqual(row.individualMinimum.format, 'raw565');
+});
+
+test('CLI exports converted and side-by-side comparison PNG previews', async () => {
+  const { dir, path } = await fixture();
+  const convertedPath = join(dir, 'converted.png');
+  const comparisonPath = join(dir, 'comparison.png');
+  await exec(process.execPath, [cli, 'build', path, '--format', 'rgb565be', '--preview', convertedPath]);
+  await exec(process.execPath, [cli, 'build', path, '--format', 'rgb565be', '--preview', comparisonPath, '--preview-layout', 'comparison']);
+  const { loadImage } = await import('@napi-rs/canvas');
+  const converted = await loadImage(convertedPath);
+  const comparison = await loadImage(comparisonPath);
+  assert.deepEqual([converted.width, converted.height], [2, 1]);
+  assert.deepEqual([comparison.width, comparison.height], [4, 1]);
+});

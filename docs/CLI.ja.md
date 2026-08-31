@@ -17,6 +17,8 @@ gfx-image-tool init [directory]
 | option | 内容 |
 | --- | --- |
 | `--out <path>` | 単一画像の出力ヘッダー、またはprojectの出力directory |
+| `--preview <path>` | 単一画像の変換後PNG、またはproject previewの出力directory |
+| `--preview-layout <id>` | `converted`（既定）または原画と変換後を横に並べる`comparison` |
 | `--target <id>` | C出力target。TinyGFXは`tinygfx` |
 | `--format <id>` | 形式を固定。TinyGFXの既定は`auto` |
 | `--mode <mode>` | `auto`、`monochrome`、`grayscale`、`indexed`、`true-color` |
@@ -35,6 +37,18 @@ TinyGFXでは`--decoder-cost <N>`で1形式分の固定コストを変更でき�
 `--prefer-bitmap h|v`は同容量の1bpp形式を安定して選ぶための指定です。
 `--monochrome`を付けると、3色以上の画像もthreshold処理して1bpp候補へ加えます。
 `--aligned-vblit`は縦詰めを既定にし、fast pathの実測コストを別欄でreportします。
+
+変換後の実画素はPNGへ書き出せます。
+
+```sh
+gfx-image-tool build icon.png --target tinygfx --preview icon-converted.png
+gfx-image-tool build icon.png --target tinygfx \
+  --preview icon-comparison.png --preview-layout comparison
+```
+
+directoryの場合、`--preview previews`のように出力directoryを指定します。入力のsubdirectory
+構造を保ったPNGが生成されます。previewはheaderへ格納された形式をdecodeした画素なので、
+RGB565の丸め、palette減色、1bpp化、透過を含みます。`comparison`は左が原画、右が変換後です。
 
 ## TinyGFX project
 

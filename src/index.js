@@ -22,6 +22,7 @@ export {
 } from './optimize/tinygfx.js';
 export { emitCSource, emitCBundle, sanitizeIdentifier } from './target/csource.js';
 export { listTargets, targetFormats, targetSupports } from './target/presets.js';
+export { decodeEncodedImage, compareImages } from './preview/decode.js';
 export {
   GfxImageError,
   InvalidImageError,

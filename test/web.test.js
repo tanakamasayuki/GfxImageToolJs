@@ -17,6 +17,8 @@ test('web workspace exposes project inputs and core-only module entry', async ()
   const bridge = await readFile(join(root, 'web', 'gfx-image-tool.js'), 'utf8');
   assert.match(html, /id="files"[^>]+multiple/);
   assert.match(html, /id="download-header"/);
+  assert.match(html, /id="download-converted"/);
+  assert.match(html, /id="download-comparison"/);
   assert.match(html, /id="config-file"/);
   assert.match(bridge, /src\/index\.js/);
   assert.match(bridge, /src\/browser\/index\.js/);

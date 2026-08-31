@@ -45,6 +45,8 @@
   "export.title": "出力",
   "export.header": "Project .hをdownload",
   "export.selected": "選択画像の.hをdownload",
+  "export.converted": "変換後PNGをdownload",
+  "export.comparison": "原画・変換後の比較PNGをdownload",
   "export.config": ".imagesconfigをdownload",
   "export.import": ".imagesconfigをimport",
   "export.report": "report.jsonをdownload",

@@ -3,6 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createImage,
+  compareImages,
+  decodeEncodedImage,
   canEncode,
   cropImage,
   emitCSource,
@@ -143,4 +145,15 @@ test('C bundle emits one preamble and rejects sanitized symbol collisions', () =
     { encoded, name: 'icon-a', comment: 'a.png' },
     { encoded, name: 'icon_a', comment: 'b.png' },
   ]), /C symbol collision/);
+});
+
+test('encoded preview reproduces RGB565 pixels and comparison is side by side', () => {
+  const source = rgba([255, 0, 0, 255], [0, 255, 0, 255]);
+  const converted = decodeEncodedImage(encodeImage(source, 'rgb565be'));
+  assert.deepEqual([...converted.pixels], [255, 0, 0, 255, 0, 255, 0, 255]);
+  const comparison = compareImages(source, converted);
+  assert.equal(comparison.width, 4);
+  assert.equal(comparison.height, 1);
+  assert.deepEqual([...comparison.pixels.slice(0, 8)], [...source.pixels]);
+  assert.deepEqual([...comparison.pixels.slice(8)], [...converted.pixels]);
 });

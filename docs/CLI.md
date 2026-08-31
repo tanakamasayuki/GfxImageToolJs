@@ -12,10 +12,14 @@ A file path converts one image. A directory path recursively builds a project co
 `.imagesconfig`. Directory builds emit one bundled `generated/images.h` by default; set
 `[general] output_mode = split` for per-image headers. `init` never overwrites an existing configuration.
 
-Common options include `--out`, `--target`, `--format`, `--name`, `--prefix`, `--threshold`,
+Common options include `--out`, `--preview`, `--preview-layout`, `--target`, `--format`, `--name`, `--prefix`, `--threshold`,
 `--alpha-threshold`, `--dither`, `--colors`, `--matte`, `--check`, and `--json`.
 Check mode is read-only and exits with status 2 for missing or different output. Invalid command
 arguments exit with status 3.
+
+`--preview <path>` writes pixels decoded from the generated asset. Use
+`--preview-layout comparison` to place the source on the left and converted pixels on the right.
+For directory builds, the preview path is an output directory and input subdirectories are preserved.
 
 ## TinyGFX
 

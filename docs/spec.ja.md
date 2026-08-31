@@ -511,6 +511,7 @@ gfx-image-tool --version
 --json                stdout を機械可読 JSON にする
 --report <path>       詳細レポート JSON の保存先
 --preview <path>      単一画像の変換後 PNG、または preview 出力 directory
+--preview-layout <id> converted、または原画と変換後を横に並べる comparison
 --name <identifier>   単一画像のシンボル名
 --prefix <identifier> directory 出力の接頭辞
 -h, --help

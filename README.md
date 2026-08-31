@@ -23,6 +23,7 @@ Directory projects generate one bundled `generated/images.h` by default. Set
 gfx-image-tool init ./images
 gfx-image-tool build ./images
 gfx-image-tool build ./images --check
+gfx-image-tool build ./images --target tinygfx --preview ./previews --preview-layout comparison
 ```
 
 Current formats: `bitmap1-msb`, `bitmap1-lsb`, `bitmap1-vertical`, `mask1-msb`,
@@ -34,7 +35,7 @@ Targets: `generic-c`, `adafruit-gfx`, `u8g2`, `lovyangfx`, `arduino-gfx`, `tft-e
 
 The static web app handles multiple images as one project without uploading them. It provides
 project defaults and per-image overrides, original/converted previews, TinyGFX set optimization,
-and downloads for the bundled header, `.imagesconfig`, and JSON report.
+and downloads for the bundled header, converted/comparison PNGs, `.imagesconfig`, and JSON report.
 
 ```sh
 npm run serve
