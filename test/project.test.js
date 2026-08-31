@@ -234,6 +234,8 @@ prefer_bitmap = horizontal
   const bundle = await readFile(join(root, 'generated', 'images.h'), 'utf8');
   assert.match(bundle, /const CellImage red/);
   assert.match(bundle, /const CellImage blue/);
+  assert.match(bundle, /const TinyGFXImageRef\* const images_file_refs\[images_file_count\]/);
+  assert.match(bundle, /&blueRef,\n  &redRef/);
   assert.equal(built.results.length, 1);
 });
 

@@ -158,6 +158,12 @@ A new project bundles every input under `images/` into one `images.h` beside tha
 symbol collisions across the project, and keeps generated output easy to manage. With common
 `-fdata-sections` and `--gc-sections` settings, the linker can remove unreferenced data sections.
 
+The bundle ends with `<prefix>_file_count`, `file_names`, `file_data`, `file_sizes`, `file_widths`,
+`file_heights`, and `file_formats`; TinyGFX also gets `file_refs`. If these indexes are unreferenced,
+`-fdata-sections` plus `--gc-sections` can discard them and otherwise-unused images. Referencing
+`file_data` or `file_refs` intentionally retains every image pointed to by that index. Toolchains
+without section GC do not provide this guarantee, so use the link map as the final authority.
+
 However, including a header containing definitions in several translation units can duplicate
 `static` data. Normally include a bundle from one `.cpp`, or inspect the link map. Use
 `output_mode = split` when compile ownership or separate headers are more important.

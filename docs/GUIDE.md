@@ -225,6 +225,18 @@ Generated headers include a target-specific example. The basic TinyGFX form is:
 lcd.drawImage(&img_iconRef, 10, 10);
 ```
 
+Bundles also contain indexes for selecting several images by number or name. With the `img_` prefix,
+for example, use `img_file_count`, `img_file_names`, and `img_file_refs`:
+
+```cpp
+for (uint16_t i = 0; i < img_file_count; ++i) {
+  lcd.drawImage(img_file_refs[i], 0, i * 24);
+}
+```
+
+Using the pointer index intentionally retains every image. If only `img_iconRef` is referenced,
+section GC can discard the other images and the unused index.
+
 Check the header or report for the exact symbol. Normally include a bundled header from one
 translation unit; including definitions from the same header in several `.cpp` files may duplicate
 data depending on the generated declarations and toolchain.

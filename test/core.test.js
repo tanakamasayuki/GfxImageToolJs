@@ -153,11 +153,19 @@ test('C bundle emits one preamble and rejects sanitized symbol collisions', () =
   const bundled = emitCBundle([
     { encoded, name: 'icon-a', comment: 'a.png' },
     { encoded, name: 'icon_b', comment: 'b.png' },
-  ]).source;
+  ], { prefix: 'ui_' }).source;
   assert.equal((bundled.match(/#pragma once/g) ?? []).length, 1);
   assert.match(bundled, /\/\/ ---- a\.png ----/);
   assert.match(bundled, /icon_a_data/);
   assert.match(bundled, /icon_b_data/);
+  assert.match(bundled, /const uint16_t ui_file_count = 2/);
+  assert.match(bundled, /const char\* const ui_file_names\[ui_file_count\]/);
+  assert.match(bundled, /"a\.png",\n  "b\.png"/);
+  assert.match(bundled, /const uint8_t\* const ui_file_data\[ui_file_count\]/);
+  assert.match(bundled, /const uint32_t ui_file_sizes\[ui_file_count\]/);
+  assert.match(bundled, /const uint16_t ui_file_widths\[ui_file_count\]/);
+  assert.match(bundled, /const char\* const ui_file_formats\[ui_file_count\]/);
+  assert.doesNotMatch(bundled, /ui_file_refs/);
   assert.throws(() => emitCBundle([
     { encoded, name: 'icon-a', comment: 'a.png' },
     { encoded, name: 'icon_a', comment: 'b.png' },

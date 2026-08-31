@@ -154,9 +154,11 @@ export function emitCSource(encoded, target = 'generic-c', options = {}) {
 /**
  * Emit several independently link-prunable image objects into one project header.
  * @param {{encoded: import('../format/registry.js').EncodedImage, target?: string, name: string, storage?: string, align?: number, static?: boolean, comment?: string}[]} items
+ * @param {{prefix?: string}} [options]
  */
-export function emitCBundle(items) {
+export function emitCBundle(items, options = {}) {
   const symbols = new Map();
+  const declaredSymbols = new Set();
   const fragments = [];
   let usesTinyGfx = false;
   for (const item of items) {
@@ -166,6 +168,13 @@ export function emitCBundle(items) {
     symbols.set(name, item.comment ?? item.name);
     const target = item.target ?? 'generic-c';
     usesTinyGfx ||= target === 'tinygfx';
+    if (target === 'tinygfx') {
+      for (const symbol of [`${name}Data`, name, `${name}Ref`]) declaredSymbols.add(symbol);
+      if (item.encoded.palette) declaredSymbols.add(`${name}Palette`);
+    } else {
+      for (const symbol of [`${name}_data`, `${name}_width`, `${name}_height`, `${name}_stride`, `${name}_length`]) declaredSymbols.add(symbol);
+      if (item.encoded.palette) for (const symbol of [`${name}_palette`, `${name}_palette_count`]) declaredSymbols.add(symbol);
+    }
     const emitted = emitCSource(item.encoded, target, {
       name,
       storage: item.storage,
@@ -175,6 +184,7 @@ export function emitCBundle(items) {
     });
     fragments.push(`// ---- ${item.comment ?? item.name} ----\n${emitted.source.trimEnd()}`);
   }
+  const index = emitBundleIndex(items, options.prefix, declaredSymbols);
   return {
     source: [
       '#pragma once',
@@ -187,8 +197,51 @@ export function emitCBundle(items) {
       ] : []),
       '',
       fragments.join('\n\n'),
+      ...(index ? ['', index] : []),
       '',
     ].join('\n'),
     issues: [],
   };
+}
+
+/**
+ * Embed Asset Tool-style parallel arrays. The data and ref arrays intentionally retain every image
+ * only when the caller references those arrays; unused sections remain linker-prunable.
+ * @param {{encoded: import('../format/registry.js').EncodedImage, target?: string, name: string, static?: boolean, comment?: string}[]} items
+ * @param {string | undefined} prefix
+ * @param {Set<string>} declaredSymbols
+ */
+function emitBundleIndex(items, prefix, declaredSymbols) {
+  if (!items.length) return '';
+  const group = sanitizeIdentifier(String(prefix || 'images').replace(/_+$/, '') || 'images');
+  const base = `${group}_file`;
+  const indexSymbols = [`${base}_count`, `${base}_names`, `${base}_data`, `${base}_sizes`, `${base}_widths`, `${base}_heights`, `${base}_formats`];
+  const allTinyGfx = items.every((item) => (item.target ?? 'generic-c') === 'tinygfx');
+  if (allTinyGfx) indexSymbols.push(`${base}_refs`);
+  for (const symbol of indexSymbols) {
+    if (declaredSymbols.has(symbol)) throw new EncodeConstraintError('SYMBOL_COLLISION', `C symbol collision with generated image index: ${symbol}`);
+  }
+  const linkage = items.every((item) => item.static !== false) ? 'static ' : '';
+  const names = items.map((item) => JSON.stringify(String(item.comment ?? item.name).replaceAll('\\', '/')));
+  const data = items.map((item) => {
+    const name = sanitizeIdentifier(item.name);
+    return (item.target ?? 'generic-c') === 'tinygfx' ? `${name}Data` : `${name}_data`;
+  });
+  const refs = items.map((item) => `&${sanitizeIdentifier(item.name)}Ref`);
+  const array = (/** @type {string} */ declaration, /** @type {(string|number)[]} */ values) => [
+    `${declaration} = {`,
+    ...values.map((value, index) => `  ${value}${index + 1 < values.length ? ',' : ''}`),
+    '};',
+  ].join('\n');
+  return [
+    '// ---- project image index ----',
+    `${linkage}const uint16_t ${base}_count = ${items.length};`,
+    array(`${linkage}const char* const ${base}_names[${base}_count]`, names),
+    array(`${linkage}const uint8_t* const ${base}_data[${base}_count]`, data),
+    array(`${linkage}const uint32_t ${base}_sizes[${base}_count]`, items.map((item) => item.encoded.data.length)),
+    array(`${linkage}const uint16_t ${base}_widths[${base}_count]`, items.map((item) => item.encoded.width)),
+    array(`${linkage}const uint16_t ${base}_heights[${base}_count]`, items.map((item) => item.encoded.height)),
+    array(`${linkage}const char* const ${base}_formats[${base}_count]`, items.map((item) => JSON.stringify(item.encoded.format))),
+    ...(allTinyGfx ? [array(`${linkage}const TinyGFXImageRef* const ${base}_refs[${base}_count]`, refs)] : []),
+  ].join('\n\n');
 }

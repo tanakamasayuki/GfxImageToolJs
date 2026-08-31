@@ -61,6 +61,11 @@ gfx-image-tool build ./MySketch --check
 `output_mode = split`を指定します。CLIの相対`--out`と`--preview`はcurrent working directory基準、
 設定内の相対pathは`.imagesconfig`がある`images/`基準です。
 
+bundle headerには画像ごとのsymbolに加え、`*_file_count`、`*_file_names`、`*_file_data`、
+`*_file_sizes`、寸法、形式の一覧を生成します。TinyGFXでは`*_file_refs`も生成するため、名前や番号から
+`TinyGFXImageRef`を選べます。これらの一覧を参照しなければ、section GCが有効な通常の組込みbuildでは
+一覧も未使用画像もlinkerにより除去されます。
+
 ```sh
 gfx-image-tool build ./MySketch --target tinygfx \
   --preview ./previews --preview-layout both

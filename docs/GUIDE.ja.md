@@ -222,6 +222,18 @@ layout = both
 lcd.drawImage(&img_iconRef, 10, 10);
 ```
 
+複数画像を番号や名前で扱うため、bundleには一覧も入ります。prefixが`img_`なら、例えば
+`img_file_count`、`img_file_names`、`img_file_refs`を利用できます。
+
+```cpp
+for (uint16_t i = 0; i < img_file_count; ++i) {
+  lcd.drawImage(img_file_refs[i], 0, i * 24);
+}
+```
+
+このpointer一覧を使うと全画像を必要としている意思表示になるため、全画像がlinkされます。一覧を使わず
+`img_iconRef`だけを参照する場合、section GCが有効なら他の画像と一覧は除去対象になります。
+
 実際のsymbol名は、ヘッダーと変換reportで確認してください。同じbundle headerを複数の
 `.cpp`からincludeする構成は重複を招くことがあるため、通常は描画を担当する1つの翻訳単位から
 includeします。

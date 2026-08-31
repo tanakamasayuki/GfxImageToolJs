@@ -154,6 +154,12 @@ TinyGFX 1bppでは0 bitが透明として扱われるという消費側の制約
 一度に検査でき、生成物管理も明瞭です。一般的な`-fdata-sections`と`--gc-sections`を有効にした構成では、
 未参照のdata sectionをlinkerが除去できます。
 
+bundle末尾には`<prefix>_file_count`、`file_names`、`file_data`、`file_sizes`、`file_widths`、
+`file_heights`、`file_formats`を生成し、TinyGFXだけは`file_refs`も生成します。一覧自身を参照しなければ、
+`-fdata-sections`と`--gc-sections`により一覧と未使用画像を除去できます。逆に`file_data`または
+`file_refs`を参照すると、その一覧がpointerで指す全画像を意図的に保持します。toolchainのsection GCが
+無効な場合は除去を保証できないため、最終判断はmap fileで行います。
+
 ただし、header内の定義を複数translation unitへincludeすると、`static` dataが単位ごとに複製される
 可能性があります。bundleは通常1つの`.cpp`からincludeするか、map fileで最終Flashを確認してください。
 分割コンパイルや所有単位を明確にしたい場合は`output_mode = split`を使います。

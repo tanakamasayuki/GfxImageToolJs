@@ -257,7 +257,7 @@ function recompute() {
     const header = emitCBundle(results.map((result) => ({
       encoded: result.encoded, target: settings.target, name: result.symbol,
       storage: 'PROGMEM', align: 4, static: true, comment: result.item.name,
-    }))).source;
+    })), { prefix: settings.prefix || 'images' }).source;
     const report = {
       version: 1, target: settings.target, generatedHeader: settings.outputFile,
       formats: optimization?.formats ?? [...new Set(results.map((result) => result.format))],

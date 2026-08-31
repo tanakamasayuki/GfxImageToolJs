@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- (EN) Add Embed Asset Tool-style image count, name, data, size, dimension, and format indexes to bundle headers, plus directly drawable TinyGFX reference indexes.
+- (JA) bundle headerへEmbed Asset Tool形式の画像count・name・data・size・寸法・形式一覧と、直接描画できるTinyGFX reference一覧を追加。
 - (EN) Adopt a clean `images/ -> ../images.h` project layout with configurable output placement, sketch-root CLI discovery, disposable Git-ignored tool cache, and matching Web ZIP import/export.
 - (JA) `images/ -> ../images.h`の整理されたproject構成、変更可能な出力先、CLIのsketch root自動検出、git管理不要の再生成cache、同構成のWeb ZIP入出力を追加。
 - (EN) Simplify per-image Web settings by hiding irrelevant controls, removing the symbol override field, constraining the eyedropper to source pixels, and explicitly clearing/reporting unmatched source color keys.

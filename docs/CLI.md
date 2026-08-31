@@ -82,6 +82,16 @@ output_mode = bundle
 This writes `MySketch/src/generated/artwork.h`. For a temporary directory override, use
 `gfx-image-tool build MySketch --out ./temporary`; CLI options take precedence over configuration.
 
+Bundle headers always include indexes using the configured prefix, or `images` when it is empty:
+
+- `*_file_count` and `*_file_names`;
+- `*_file_data` and `*_file_sizes`;
+- `*_file_widths`, `*_file_heights`, and `*_file_formats`; and
+- `*_file_refs` for TinyGFX only.
+
+`file_sizes` contains the encoded-data byte count addressed by `file_data`; palette bytes remain a
+separate value in the optimization report.
+
 ## TinyGFX
 
 Use `--target tinygfx`; its default format is `auto`. The candidates are `raw565`, `rle565`,

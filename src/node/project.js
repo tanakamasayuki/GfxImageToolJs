@@ -247,7 +247,7 @@ export async function buildImageProject(projectDir, options = {}) {
       align: prepared[index].effective.csource.align,
       static: prepared[index].effective.csource.static,
       comment: image.relative,
-    }))).source,
+    })), { prefix: config.general.prefix || 'images' }).source,
   } : undefined;
   let index;
   if (config.general.outputMode === 'split' && config.general.indexHeader) {

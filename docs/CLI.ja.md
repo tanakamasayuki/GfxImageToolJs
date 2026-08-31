@@ -92,6 +92,15 @@ output_mode = bundle
 この例は`MySketch/src/generated/artwork.h`を生成します。一時的に出力directoryだけを変える場合は
 `gfx-image-tool build MySketch --out ./temporary`のように指定します。CLI optionは設定より優先されます。
 
+bundle headerには設定したprefix（空なら`images`）を使った次の一覧も常に入ります。
+
+- `*_file_count`、`*_file_names`
+- `*_file_data`、`*_file_sizes`
+- `*_file_widths`、`*_file_heights`、`*_file_formats`
+- TinyGFXのみ`*_file_refs`
+
+`file_sizes`は`file_data`が指す符号化data本体のbyte数です。palette容量は最適化reportで別に確認します。
+
 ## TinyGFX project
 
 ```ini

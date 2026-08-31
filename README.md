@@ -65,6 +65,11 @@ New projects keep `.imagesconfig` in `MySketch/images/` and bundle every image i
 elsewhere, or set `output_mode = split` for per-image headers. Relative CLI `--out` and `--preview`
 paths use the current working directory; relative configuration paths use the containing `images/` directory.
 
+Bundle headers also expose Embed Asset Tool-style `*_file_count`, `*_file_names`, `*_file_data`,
+`*_file_sizes`, dimensions, and format arrays. TinyGFX bundles additionally expose `*_file_refs`.
+When those indexes are unreferenced, normal embedded builds using section GC can discard the indexes
+and otherwise-unused images.
+
 ```sh
 gfx-image-tool build ./MySketch --target tinygfx \
   --preview ./previews --preview-layout both
