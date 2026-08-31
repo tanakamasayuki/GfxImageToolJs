@@ -15,8 +15,8 @@ Choose a document based on what you need:
 | Publish a release as a maintainer | [Release procedure](release.md) |
 | Review release-by-release changes | [Changelog](../CHANGELOG.md) |
 
-The shortest path is to select images and a target in the browser, inspect converted previews, and
-download the project `.h`. For ongoing generation, export `.imagesconfig` and move to CLI directory
+The shortest path is to select images and an output library in the browser, inspect converted previews,
+and download the project ZIP. For ongoing generation, export `.imagesconfig` and move to CLI directory
 builds with `--check`.
 
 [Back to the repository README](../README.md)

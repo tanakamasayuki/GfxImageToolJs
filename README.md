@@ -28,7 +28,8 @@ New to palettes, RGB565, dithering, or color keys? Start with the
 Open the [web app](https://tanakamasayuki.github.io/GfxImageToolJs/), add one or more images, select
 the target graphics library, compare original and converted previews, and download:
 
-- one bundled project `.h` or the selected image header;
+- one project ZIP containing the bundled `.h`, configuration, report, and previews;
+- the bundled project `.h` or selected image header separately;
 - converted and side-by-side comparison PNGs;
 - `.imagesconfig` for CLI reproduction; and
 - a JSON conversion and optimization report.

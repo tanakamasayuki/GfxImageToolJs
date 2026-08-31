@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- (EN) Improve the browser workspace with human-readable settings and help, sorted replacement-safe images, effective per-image values, selectable preview backgrounds, confirmed removal, dropped configuration import, file previews, and a complete project ZIP.
+- (JA) Web workspaceへ人向け設定名とhelp、sort済み同名差替え、画像別実効値、preview背景選択、削除確認、設定drop import、ファイルpreview、project ZIPを追加。
 - (EN) Add paired English/Japanese documentation paths with beginner and advanced guides, a documentation index, a prominent browser-workspace link, and a release checklist.
 - (JA) 初心者／上級ガイド、文書index、Web版への目立つ導線、release checklistを日英の対で追加。
 - (EN) Start the library-first image model, embedded pixel encoders, generic C emitter, and Node CLI.

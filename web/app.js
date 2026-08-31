@@ -2,6 +2,7 @@
 import {
   compositeAlpha,
   compareImages,
+  createStoredZip,
   decodeBrowserImage,
   decodeEncodedImage,
   emitCBundle,
@@ -30,9 +31,9 @@ const select = (id) => /** @type {HTMLSelectElement} */ ($(id));
 /** @param {number} value @param {number} min @param {number} max */
 const clamp = (value, min, max) => Math.max(min, Math.min(max, Number.isFinite(value) ? value : min));
 
-const SETTINGS_KEY = 'gfx-image-tool.project-settings.v1';
+const SETTINGS_KEY = 'gfx-image-tool.project-settings.v2';
 const DEFAULTS = {
-  target: 'tinygfx', mode: 'auto', format: 'auto', colors: 16, dither: 'none', threshold: 128,
+  target: 'generic-c', mode: 'auto', format: 'rgb565be', colors: 16, dither: 'none', threshold: 128,
   alphaMode: 'auto', alphaThreshold: 128, alphaColor: 'auto', decoderCost: 400,
   preferBitmap: 'horizontal', alignedVblit: false, prefix: 'img_', outputFile: 'images.h',
 };
@@ -45,6 +46,9 @@ let settings = loadSettings();
 let images = [];
 let selectedId = 0;
 let nextId = 1;
+let selectedExportPath = '';
+/** @type {{pattern: string, values: Record<string, string>}[]} */
+let importedOverrides = [];
 /** @type {null | {header: string, images: {item: WorkspaceImage, prepared: import('../src/model/image.js').GfxImage, encoded: import('../src/format/registry.js').EncodedImage, format: string, symbol: string, bytes: number}[], optimization?: ReturnType<typeof optimizeTinyImageSet>, report: object}} */
 let computed = null;
 
@@ -57,17 +61,44 @@ function loadSettings() {
 function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* ignore */ } }
 
 const targetEl = select('target');
-for (const target of listTargets()) targetEl.add(new Option(target, target));
 for (const locale of SUPPORTED_LOCALES) select('language').add(new Option(locale.label, locale.id));
 
 const modeValues = ['auto', 'monochrome', 'grayscale', 'indexed', 'true-color'];
-for (const value of modeValues) select('override-mode').add(new Option(value, value));
-for (const value of ['none', 'floyd-steinberg', 'bayer2', 'bayer4', 'bayer8']) select('override-dither').add(new Option(value, value));
+const ditherValues = ['none', 'floyd-steinberg', 'bayer2', 'bayer4', 'bayer8'];
+
+/** @param {string} value */
+function modeLabel(value) { return t(`value.mode.${value}`); }
+/** @param {string} value */
+function ditherLabel(value) { return t(`value.dither.${value}`); }
+/** @param {string} value */
+function formatLabel(value) { return t(`format.${value}`); }
+
+/** @param {HTMLSelectElement} element @param {string[]} values @param {(value: string) => string} label @param {boolean} [inherit] */
+function fillOptions(element, values, label, inherit = false) {
+  const previous = element.value;
+  element.textContent = '';
+  if (inherit) element.add(new Option(t('editor.inherit'), ''));
+  for (const value of values) element.add(new Option(label(value), value));
+  if ([...element.options].some((option) => option.value === previous)) element.value = previous;
+}
+
+function fillTranslatedOptions() {
+  const previousTarget = targetEl.value || settings.target;
+  const targets = listTargets().map((value) => ({ value, label: t(`target.${value}`) }))
+    .sort((a, b) => a.value.localeCompare(b.value, 'en', { sensitivity: 'base' }));
+  targetEl.textContent = '';
+  for (const target of targets) targetEl.add(new Option(target.label, target.value));
+  targetEl.value = targets.some((target) => target.value === previousTarget) ? previousTarget : 'generic-c';
+  fillOptions(select('mode'), modeValues, modeLabel);
+  fillOptions(select('override-mode'), modeValues, modeLabel, true);
+  fillOptions(select('dither'), ditherValues, ditherLabel);
+  fillOptions(select('override-dither'), ditherValues, ditherLabel, true);
+}
 
 function tinyFormatOptions() {
   return [
-    ['auto', 'auto (set optimizer)'], ['raw565', 'raw565'], ['rle565', 'rle565'],
-    ['rlepal4', 'rlepal4'], ['bitmap1h', 'bitmap1h'], ['bitmap1v', 'bitmap1v'],
+    ['auto', formatLabel('auto-tinygfx')], ['raw565', formatLabel('raw565')], ['rle565', formatLabel('rle565')],
+    ['rlepal4', formatLabel('rlepal4')], ['bitmap1h', formatLabel('bitmap1h')], ['bitmap1v', formatLabel('bitmap1v')],
   ];
 }
 
@@ -78,7 +109,7 @@ function fillFormatOptions(element, includeInherit) {
   if (includeInherit) element.add(new Option(t('editor.inherit'), ''));
   const options = settings.target === 'tinygfx'
     ? tinyFormatOptions()
-    : [['auto', 'auto'], ...targetFormats(settings.target).map((format) => [format, format])];
+    : targetFormats(settings.target).map((format) => [format, formatLabel(format)]);
   for (const [value, label] of options) element.add(new Option(label, value));
   if ([...element.options].some((option) => option.value === previous)) element.value = previous;
 }
@@ -87,7 +118,8 @@ function applySettingsToControls() {
   targetEl.value = settings.target;
   select('mode').value = settings.mode;
   fillFormatOptions(select('format'), false);
-  select('format').value = [...select('format').options].some((option) => option.value === settings.format) ? settings.format : 'auto';
+  select('format').value = [...select('format').options].some((option) => option.value === settings.format)
+    ? settings.format : (settings.target === 'tinygfx' ? 'auto' : defaultFormat(settings.target));
   settings.format = select('format').value;
   input('colors').value = String(settings.colors);
   select('dither').value = settings.dither;
@@ -241,16 +273,38 @@ function setStatus(message, error = false) {
 
 /** @param {FileList|File[]} files */
 async function addFiles(files) {
-  for (const file of Array.from(files)) {
+  const incoming = Array.from(files);
+  const configs = incoming.filter((file) => file.name === '.imagesconfig' || file.name.endsWith('.imagesconfig'));
+  const replaced = [];
+  for (const file of incoming.filter((candidate) => !configs.includes(candidate))) {
     if (!file.type.startsWith('image/') && !/\.(png|jpe?g|gif|bmp|webp)$/i.test(file.name)) continue;
     setStatus(t('status.decoding', { name: file.name }));
     try {
       const image = await decodeBrowserImage(file, { name: file.name });
-      images.push({ id: nextId++, name: file.webkitRelativePath || file.name, image, thumbnail: imageUrl(image), override: {} });
-      selectedId ||= images.at(-1)?.id ?? 0;
+      const name = file.webkitRelativePath || file.name;
+      const existing = images.find((item) => item.name === name);
+      if (existing) {
+        existing.image = image;
+        existing.thumbnail = imageUrl(image);
+        replaced.push(name);
+      } else {
+        const item = { id: nextId++, name, image, thumbnail: imageUrl(image), override: {} };
+        applyImportedOverride(item);
+        images.push(item);
+      }
     } catch (error) { setStatus(t('status.error', { message: /** @type {Error} */ (error).message }), true); }
   }
-  recompute();
+  images.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base', numeric: true }));
+  selectedId ||= images[0]?.id ?? 0;
+  if (configs.length) {
+    try {
+      const config = configs.at(-1);
+      if (config) { importConfig(await config.text()); setStatus(t('status.configImported', { name: config.name })); }
+    } catch (error) { setStatus(t('status.error', { message: /** @type {Error} */ (error).message }), true); }
+  } else {
+    recompute();
+    if (replaced.length) setStatus(t('images.replaced', { name: replaced.join(', ') }));
+  }
 }
 
 /** @param {import('../src/model/image.js').GfxImage} image */
@@ -263,14 +317,38 @@ function imageUrl(image) {
 
 function selectedItem() { return images.find((item) => item.id === selectedId); }
 
+/** @param {string} pattern @param {string} value */
+function matchesImagePattern(pattern, value) {
+  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replaceAll('**', '\u0000').replaceAll('*', '[^/]*').replaceAll('\u0000', '.*').replaceAll('?', '[^/]');
+  return new RegExp(`^${escaped}$`).test(value);
+}
+
+/** @param {WorkspaceImage} item */
+function applyImportedOverride(item) {
+  for (const section of importedOverrides) {
+    if (!matchesImagePattern(section.pattern, item.name)) continue;
+    const value = section.values;
+    item.override = {
+      ...item.override,
+      symbol: value.symbol || item.override.symbol,
+      mode: value.mode || item.override.mode,
+      format: value.format || item.override.format,
+      colors: value.colors ? Number(value.colors) : item.override.colors,
+      threshold: value.threshold ? Number(value.threshold) : item.override.threshold,
+      dither: value.dither || item.override.dither,
+    };
+  }
+}
+
 function renderImageList() {
   const list = $('image-list');
   list.textContent = '';
   $('image-empty').hidden = images.length > 0;
-  for (const item of images) {
+  for (const [index, item] of images.entries()) {
     const result = computed?.images.find((entry) => entry.item.id === item.id);
     const li = document.createElement('li');
     li.className = `image-row${item.id === selectedId ? ' selected' : ''}`;
+    const order = document.createElement('span'); order.className = 'image-index'; order.textContent = String(index + 1);
     const thumb = document.createElement('img'); thumb.className = 'thumb'; thumb.src = item.thumbnail; thumb.alt = '';
     const body = document.createElement('div');
     const name = document.createElement('div'); name.className = 'image-name'; name.textContent = item.name;
@@ -278,7 +356,7 @@ function renderImageList() {
     const format = document.createElement('div'); format.className = 'image-format'; format.textContent = result?.format ?? '—';
     body.append(name, meta, format);
     const size = document.createElement('div'); size.className = 'image-size'; size.textContent = result ? t('images.bytes', { bytes: result.bytes }) : '—';
-    li.append(thumb, body, size);
+    li.append(order, thumb, body, size);
     li.addEventListener('click', () => { selectedId = item.id; renderAll(); });
     list.append(li);
   }
@@ -289,16 +367,47 @@ function renderEditor() {
   $('editor').hidden = !item;
   $('editor-empty').hidden = !!item;
   if (!item) return;
+  const converted = computed?.images.find((entry) => entry.item.id === item.id);
+  const effective = { ...settings, ...item.override };
   fillFormatOptions(select('override-format'), true);
+  select('override-mode').options[0].textContent = `${t('editor.inherit')} — ${modeLabel(settings.mode)}`;
+  select('override-format').options[0].textContent = `${t('editor.inherit')} — ${converted ? formatLabel(converted.format) : formatLabel(settings.format)}`;
+  select('override-dither').options[0].textContent = `${t('editor.inherit')} — ${ditherLabel(settings.dither)}`;
   input('override-symbol').value = item.override.symbol ?? '';
+  input('override-symbol').placeholder = converted?.symbol ?? t('editor.inherit');
   select('override-mode').value = item.override.mode ?? '';
   select('override-format').value = item.override.format ?? '';
   input('override-colors').value = item.override.colors === undefined ? '' : String(item.override.colors);
+  input('override-colors').placeholder = String(settings.colors);
   input('override-threshold').value = item.override.threshold === undefined ? '' : String(item.override.threshold);
+  input('override-threshold').placeholder = String(settings.threshold);
   select('override-dither').value = item.override.dither ?? '';
+  const summary = $('effective-settings'); summary.textContent = ''; summary.dataset.label = t('effective.title');
+  const alphaMode = effective.alphaMode === 'auto' ? (settings.target === 'tinygfx' ? 'color-key' : 'none') : effective.alphaMode;
+  const values = [
+    t('effective.symbol', { value: converted?.symbol ?? '—' }),
+    t('effective.mode', { value: modeLabel(effective.mode) }),
+    t('effective.format', { value: converted ? formatLabel(converted.format) : '—' }),
+    t('effective.colors', { value: effective.colors }),
+    t('effective.dither', { value: ditherLabel(effective.dither) }),
+    t('effective.threshold', { value: effective.threshold }),
+    t('effective.alpha', { value: t(`value.alpha.${alphaMode}`) }),
+    t('effective.size', { value: converted?.bytes ?? '—' }),
+  ];
+  for (const value of values) { const span = document.createElement('span'); span.className = 'effective-value'; span.textContent = value; summary.append(span); }
   drawPreview(/** @type {HTMLCanvasElement} */ ($('original-preview')), item.image);
-  const converted = computed?.images.find((entry) => entry.item.id === item.id);
   if (converted) drawPreview(/** @type {HTMLCanvasElement} */ ($('converted-preview')), decodeEncodedImage(converted.encoded, { target: settings.target }));
+  else { const canvas = /** @type {HTMLCanvasElement} */ ($('converted-preview')); canvas.width = 1; canvas.height = 1; }
+  applyPreviewBackground();
+}
+
+function applyPreviewBackground() {
+  const background = select('preview-background').value;
+  for (const id of ['original-wrap', 'converted-wrap']) {
+    const wrapper = $(id);
+    wrapper.classList.remove('checker', 'preview-white', 'preview-black', 'preview-magenta', 'preview-green');
+    wrapper.classList.add(background === 'checker' ? 'checker' : `preview-${background}`);
+  }
 }
 
 /** @param {HTMLCanvasElement} canvas @param {import('../src/model/image.js').GfxImage} image */
@@ -327,16 +436,17 @@ function renderReport() {
   for (const row of report.images) {
     const item = images.find((image) => String(image.id) === String(row.key));
     const tr = document.createElement('tr');
-    for (const value of [item?.name ?? row.key, `${row.individualMinimum.format} · ${row.individualMinimum.bytes} B`, `${row.selected.format} · ${row.selected.bytes} B`, `${row.dataDelta >= 0 ? '+' : ''}${row.dataDelta} B`]) {
+    for (const value of [item?.name ?? row.key, `${formatLabel(row.individualMinimum.format)} · ${row.individualMinimum.bytes} B`, `${formatLabel(row.selected.format)} · ${row.selected.bytes} B`, `${row.dataDelta >= 0 ? '+' : ''}${row.dataDelta} B`]) {
       const td = document.createElement('td'); td.textContent = value; tr.append(td);
     }
-    const candidates = document.createElement('td'); candidates.className = 'candidates'; candidates.textContent = row.candidates.map((/** @type {{format: string, bytes: number}} */ candidate) => `${candidate.format} ${candidate.bytes} B`).join(' · '); tr.append(candidates);
+    const candidates = document.createElement('td'); candidates.className = 'candidates'; candidates.textContent = row.candidates.map((/** @type {{format: string, bytes: number}} */ candidate) => `${formatLabel(candidate.format)} ${candidate.bytes} B`).join(' · '); tr.append(candidates);
     body.append(tr);
   }
 }
 
 function renderAll() {
-  renderImageList(); renderEditor(); renderReport();
+  renderImageList(); renderEditor(); renderReport(); renderExport();
+  /** @type {HTMLButtonElement} */ ($('download-zip')).disabled = !computed;
   /** @type {HTMLButtonElement} */ ($('download-header')).disabled = !computed;
   /** @type {HTMLButtonElement} */ ($('download-selected')).disabled = !computed || !selectedItem();
   /** @type {HTMLButtonElement} */ ($('download-converted')).disabled = !computed || !selectedItem();
@@ -359,6 +469,81 @@ function downloadPng(image, name) {
   canvas.toBlob((blob) => { if (blob) download(blob, name, 'image/png'); }, 'image/png');
 }
 
+/** @param {import('../src/model/image.js').GfxImage} image @returns {Promise<Uint8Array>} */
+function pngBytes(image) {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width; canvas.height = image.height;
+    canvas.getContext('2d')?.putImageData(new ImageData(new Uint8ClampedArray(image.pixels), image.width, image.height), 0, 0);
+    canvas.toBlob(async (blob) => {
+      if (!blob) { reject(new Error('PNG encoding failed.')); return; }
+      resolve(new Uint8Array(await blob.arrayBuffer()));
+    }, 'image/png');
+  });
+}
+
+function projectTextFiles() {
+  return new Map([
+    [`generated/${settings.outputFile}`, computed?.header ?? ''],
+    ['.imagesconfig', serializeConfig()],
+    ['report.json', computed ? `${JSON.stringify(computed.report, null, 2)}\n` : ''],
+  ]);
+}
+
+/** @param {number} index @param {WorkspaceImage} item */
+function previewStem(index, item) {
+  const safe = stem(item.name).replace(/[^A-Za-z0-9._-]+/g, '_') || 'image';
+  return `${String(index + 1).padStart(2, '0')}-${safe}`;
+}
+
+function renderExport() {
+  const tree = $('export-tree'); tree.textContent = '';
+  const textFiles = projectTextFiles();
+  const available = new Map(textFiles);
+  /** @param {string} label @param {number} depth */
+  const folder = (label, depth) => { const li = document.createElement('li'); li.className = `tree-folder tree-depth-${depth}`; li.textContent = label; tree.append(li); };
+  /** @param {string} path @param {string} label @param {number} depth @param {string} preview */
+  const file = (path, label, depth, preview) => {
+    available.set(path, preview);
+    const li = document.createElement('li');
+    const button = document.createElement('button'); button.type = 'button'; button.className = `tree-depth-${depth}`;
+    button.textContent = label; button.classList.toggle('active', path === selectedExportPath);
+    button.addEventListener('click', () => { selectedExportPath = path; renderExport(); });
+    li.append(button); tree.append(li);
+  };
+  folder('gfx-image-project.zip', 0);
+  file('.imagesconfig', '.imagesconfig', 1, textFiles.get('.imagesconfig') ?? '');
+  file('report.json', 'report.json', 1, textFiles.get('report.json') ?? '');
+  folder('generated/', 1);
+  file(`generated/${settings.outputFile}`, settings.outputFile, 2, textFiles.get(`generated/${settings.outputFile}`) ?? '');
+  folder('previews/', 1);
+  for (const [index, result] of (computed?.images ?? []).entries()) {
+    const name = previewStem(index, result.item);
+    const description = t('export.pngPreview', { width: result.encoded.width, height: result.encoded.height });
+    file(`previews/${name}.png`, `${name}.png`, 2, description);
+    file(`previews/${name}.comparison.png`, `${name}.comparison.png`, 2, t('export.comparisonPreview', { width: result.encoded.width * 2, height: result.encoded.height }));
+  }
+  if (!selectedExportPath || !available.has(selectedExportPath)) selectedExportPath = `generated/${settings.outputFile}`;
+  const source = available.get(selectedExportPath) ?? '';
+  $('export-preview-title').textContent = `${t('export.preview')}: ${selectedExportPath}`;
+  const lines = source.split('\n');
+  $('export-preview').textContent = lines.length > 100 ? `${lines.slice(0, 100).join('\n')}\n\n${t('export.truncated', { lines: lines.length })}` : source;
+  for (const button of tree.querySelectorAll('button')) button.classList.toggle('active', button.textContent === selectedExportPath.split('/').at(-1));
+}
+
+async function projectZip() {
+  if (!computed) throw new Error('No generated project.');
+  /** @type {{name: string, data: Uint8Array|string}[]} */
+  const entries = [...projectTextFiles()].map(([name, data]) => ({ name, data }));
+  for (const [index, result] of computed.images.entries()) {
+    const name = previewStem(index, result.item);
+    const converted = decodeEncodedImage(result.encoded, { target: settings.target });
+    entries.push({ name: `previews/${name}.png`, data: /** @type {Uint8Array} */ (await pngBytes(converted)) });
+    entries.push({ name: `previews/${name}.comparison.png`, data: /** @type {Uint8Array} */ (await pngBytes(compareImages(result.item.image, converted))) });
+  }
+  return createStoredZip(entries);
+}
+
 function serializeConfig() {
   const lines = [
     '# Generated by Gfx Image Tool web workspace', '[general]', 'output_dir = generated',
@@ -366,6 +551,7 @@ function serializeConfig() {
     '[color]', `format = ${settings.format}`, `mode = ${settings.mode}`, `colors = ${settings.colors}`,
     `dither = ${settings.dither}`, `threshold = ${settings.threshold}`, 'invert = false', '',
     '[alpha]', `mode = ${settings.alphaMode}`, 'matte = 000000', `threshold = ${settings.alphaThreshold}`, `color = ${settings.alphaColor}`, '',
+    '[preview]', 'output_dir = previews', 'layout = both', '',
     '[csource]', 'storage = PROGMEM', 'align = 4', 'static = true', '',
     '[optimize]', `decoder_cost = ${settings.decoderCost}`, `prefer_bitmap = ${settings.preferBitmap}`, `aligned_vblit = ${settings.alignedVblit}`, '',
   ];
@@ -401,22 +587,22 @@ function importConfig(text) {
     preferBitmap: optimize.prefer_bitmap || settings.preferBitmap,
     alignedVblit: /^(true|yes|1)$/i.test(optimize.aligned_vblit || 'false'),
   };
-  for (const section of sections) {
-    const match = /^image\s+["'](.+)["']$/.exec(section.name); if (!match) continue;
-    const item = images.find((candidate) => candidate.name === match[1]); if (!item) continue;
-    const value = section.values;
-    item.override = {
-      symbol: value.symbol || undefined, mode: value.mode || undefined, format: value.format || undefined,
-      colors: value.colors ? Number(value.colors) : undefined, threshold: value.threshold ? Number(value.threshold) : undefined,
-      dither: value.dither || undefined,
-    };
-  }
+  importedOverrides = sections.flatMap((section) => {
+    const match = /^image\s+["'](.+)["']$/.exec(section.name);
+    return match ? [{ pattern: match[1], values: section.values }] : [];
+  });
+  for (const item of images) { item.override = {}; applyImportedOverride(item); }
   saveSettings(); applySettingsToControls(); recompute();
 }
 
 const settingIds = ['target', 'mode', 'format', 'colors', 'dither', 'threshold', 'alpha-mode', 'alpha-threshold', 'alpha-color', 'decoder-cost', 'prefer-bitmap', 'aligned-vblit', 'prefix', 'output-file'];
 for (const id of settingIds) $(id).addEventListener('input', () => {
-  if (id === 'target') { settings.target = targetEl.value; fillFormatOptions(select('format'), false); fillFormatOptions(select('override-format'), true); }
+  if (id === 'target') {
+    settings.target = targetEl.value;
+    settings.format = settings.target === 'tinygfx' ? 'auto' : defaultFormat(settings.target);
+    fillFormatOptions(select('format'), false); select('format').value = settings.format;
+    fillFormatOptions(select('override-format'), true);
+  }
   readSettings(); recompute();
 });
 
@@ -438,10 +624,34 @@ for (const event of ['dragenter', 'dragover']) dropZone.addEventListener(event, 
 for (const event of ['dragleave', 'drop']) dropZone.addEventListener(event, (e) => { e.preventDefault(); dropZone.classList.remove('drag'); });
 dropZone.addEventListener('drop', (event) => { const files = /** @type {DragEvent} */ (event).dataTransfer?.files; if (files) void addFiles(files); });
 document.addEventListener('paste', (event) => { const files = [...(event.clipboardData?.files ?? [])]; if (files.length) void addFiles(files); });
-$('remove').addEventListener('click', () => { images = images.filter((item) => item.id !== selectedId); selectedId = images[0]?.id ?? 0; recompute(); });
-for (const id of ['zoom', 'grid']) $(id).addEventListener('input', renderEditor);
+$('remove').addEventListener('click', () => {
+  const item = selectedItem(); if (!item) return;
+  $('remove-message').textContent = t('remove.message', { name: item.name });
+  const dialog = /** @type {HTMLDialogElement} */ ($('remove-dialog')); dialog.returnValue = ''; dialog.showModal();
+});
+$('remove-dialog').addEventListener('close', () => {
+  if (/** @type {HTMLDialogElement} */ ($('remove-dialog')).returnValue !== 'confirm') return;
+  images = images.filter((item) => item.id !== selectedId); selectedId = images[0]?.id ?? 0; recompute();
+});
+for (const id of ['zoom', 'grid', 'preview-background']) $(id).addEventListener('input', renderEditor);
+
+for (const tab of document.querySelectorAll('[data-export-tab]')) tab.addEventListener('click', () => {
+  const selected = tab.getAttribute('data-export-tab');
+  for (const button of document.querySelectorAll('[data-export-tab]')) {
+    const active = button === tab; button.classList.toggle('active', active); button.setAttribute('aria-selected', String(active));
+  }
+  $('export-project').hidden = selected !== 'project'; $('export-individual').hidden = selected !== 'individual';
+});
 
 $('download-header').addEventListener('click', () => { if (computed) download(computed.header, settings.outputFile, 'text/x-c++hdr'); });
+$('download-zip').addEventListener('click', async () => {
+  if (!computed) return;
+  const button = /** @type {HTMLButtonElement} */ ($('download-zip')); button.disabled = true;
+  setStatus(t('status.packaging'));
+  try { download(await projectZip(), 'gfx-image-project.zip', 'application/zip'); setStatus(t('status.ready', { count: images.length })); }
+  catch (error) { setStatus(t('status.error', { message: /** @type {Error} */ (error).message }), true); }
+  finally { button.disabled = !computed; }
+});
 $('download-selected').addEventListener('click', () => {
   const result = computed?.images.find((entry) => entry.item.id === selectedId); if (!result) return;
   const source = emitCSource(result.encoded, settings.target, { name: result.symbol }).source;
@@ -464,10 +674,12 @@ input('config-file').addEventListener('change', async () => {
   try { importConfig(await file.text()); } catch (error) { setStatus(t('status.error', { message: /** @type {Error} */ (error).message }), true); }
   input('config-file').value = '';
 });
-select('language').addEventListener('input', async () => { await setLocale(select('language').value); applyLanguage(); renderAll(); });
+select('language').addEventListener('input', async () => { await setLocale(select('language').value); applyLanguage(); applySettingsToControls(); renderAll(); });
 
 function applyLanguage() {
-  document.title = t('app.title'); applyTranslations(); select('language').value = currentLocale();
+  document.title = t('app.title'); applyTranslations(); fillTranslatedOptions(); select('language').value = currentLocale();
+  $('guide-link').setAttribute('href', `https://github.com/tanakamasayuki/GfxImageToolJs/blob/main/docs/GUIDE${currentLocale() === 'ja' ? '.ja' : ''}.md`);
+  $('advanced-guide-link').setAttribute('href', `https://github.com/tanakamasayuki/GfxImageToolJs/blob/main/docs/ADVANCED${currentLocale() === 'ja' ? '.ja' : ''}.md`);
 }
 
 await initI18n();

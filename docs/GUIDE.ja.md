@@ -31,6 +31,30 @@ PNG / JPEGなど
 - 複数画像をまとめて、全体として小さい形式を選ぶ
 - 変換後の見た目をPNGで確認してから組み込む
 
+## 「出力先ライブラリ」とは何か
+
+組込み画面を描くC/C++プログラムでは、画像を直接displayへ渡すのではなく、Adafruit GFXや
+TinyGFXなどの**描画ライブラリ**を使うことが一般的です。本ツールの`Target`または
+「出力先ライブラリ」は、生成したheaderをどの描画ライブラリへ渡すかという質問です。
+displayの製品名を選ぶ欄ではありません。
+
+同じ絵でも、ライブラリによって対応する色形式、bit・byteの並び、配列の宣言、描画関数が異なります。
+出力先を選ぶと、本ツールは互換性のある形式だけを候補にし、headerへ対応する使用例を入れます。
+
+| 出力先 | 選ぶ場面 |
+| --- | --- |
+| 汎用C/C++配列 | 特定libraryに合わせず、自作描画codeや独自driverから配列を読む |
+| Adafruit GFX | firmwareで`Adafruit_GFX`の描画APIを使う |
+| Arduino GFX | firmwareで`Arduino_GFX`を使う |
+| LovyanGFX | firmwareで`LovyanGFX`を使う |
+| TFT_eSPI | firmwareで`TFT_eSPI`を使う |
+| U8g2 | 主にmonochrome displayを`U8g2`で描く |
+| TinyGFX | `CellImage`、圧縮形式、画像集合最適化を使う |
+
+どれかわからない場合は、firmwareの`#include`と画像を描く関数を確認してください。まだ描画libraryを
+決めていない実験段階なら「汎用C/C++配列」を選べますが、実機へ組み込む前に実際のlibraryへ合わせて
+再生成するのが安全です。RGB565という名前が同じでもbyte順が違う場合があるためです。
+
 ## 最初はWeb版がおすすめ
 
 [Web版](https://tanakamasayuki.github.io/GfxImageToolJs/)は画像を外部へアップロードせず、
@@ -38,11 +62,14 @@ PNG / JPEGなど
 ダウンロードできます。
 
 1. 画像をdropするか、ファイル選択で追加します。
-2. 使用する描画ライブラリを`Target`で選びます。
-3. 最初は`Color mode`と`Format`を`auto`のままにします。
+2. 使用する描画ライブラリを「出力先ライブラリ」で選びます。
+3. 「色の扱い」は「自動」、画素データ形式は最初に表示された推奨値から始めます。
 4. 変換後previewで、色、輪郭、透明部分を確認します。
-5. `Download project .h`でヘッダーを保存します。
-6. 必要なら`.imagesconfig`も保存し、後でCLIで同じプロジェクトを再生成します。
+5. 「プロジェクトZIPをdownload」でheader、設定、report、previewをまとめて保存します。
+6. 個別に必要ならproject `.h`や`.imagesconfig`もdownloadできます。
+
+既存の`.imagesconfig`は画像と一緒でも、画像より先でもdropできます。画像別sectionは、対応する
+ファイル名の画像を後から追加した場合にも適用されます。
 
 複数画像を同時に入れて構いません。特にTinyGFXでは、画像をまとめて評価したほうが、
 プログラム全体で必要なデコーダを減らせる場合があります。

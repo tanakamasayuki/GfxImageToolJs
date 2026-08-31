@@ -26,7 +26,8 @@ Gfx Image Toolは、実際の変換後画素をpreviewし、互換性のあるta
 [Web版](https://tanakamasayuki.github.io/GfxImageToolJs/)を開き、1枚以上の画像を追加してtargetの
 描画libraryを選びます。原画と変換後を比較して、次をdownloadできます。
 
-- projectをまとめた`.h`または選択画像のheader
+- まとめた`.h`、設定、report、previewを収録したproject ZIP
+- projectの`.h`または選択画像のheader単体
 - 変換後PNGと左右比較PNG
 - CLIで再現するための`.imagesconfig`
 - 変換・最適化report JSON

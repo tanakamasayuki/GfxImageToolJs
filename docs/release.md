@@ -12,8 +12,9 @@ from a maintainer workstation.
    [advanced guide](ADVANCED.md), [CLI reference](CLI.md), and changelog.
 3. Exercise representative CLI paths: one image, a directory bundle, transparency, previews, and
    `--check`.
-4. Open the web app in a Chromium browser and Firefox. Check multiple images, transparency,
-   converted previews, every download, configuration export/import, and both locales.
+4. Open the web app in a Chromium browser and Firefox. Check multiple images, same-name replacement,
+   transparency and backgrounds, converted previews, the project ZIP and every download,
+   configuration drop/import/export, and both locales.
 5. After pushing `main`, open <https://tanakamasayuki.github.io/GfxImageToolJs/> directly. Confirm
    that the deployed build has no missing assets or stale-cache behavior.
 

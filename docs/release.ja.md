@@ -10,8 +10,8 @@
 2. [README](../README.ja.md)、[初心者向けガイド](GUIDE.ja.md)、
    [上級ガイド](ADVANCED.ja.md)、[CLIリファレンス](CLI.ja.md)、変更履歴を確認する。
 3. CLIで単一画像、directory bundle、透過、preview、`--check`の代表操作を確認する。
-4. Web版をChromium系とFirefoxで開き、複数画像、透過、変換後preview、各download、設定の
-   export/import、日英切替を確認する。
+4. Web版をChromium系とFirefoxで開き、複数画像、同名差替え、透過と背景切替、変換後preview、
+   project ZIPと各download、設定のdrop/import/export、日英切替を確認する。
 5. `main` push後は<https://tanakamasayuki.github.io/GfxImageToolJs/>を直接開き、assetの404や
    古いcacheがなく、公開buildが同じ動作をすることを確認する。
 

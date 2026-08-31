@@ -15,7 +15,7 @@
 | maintainerとして公開したい | [リリース手順](release.ja.md) |
 | releaseごとの変更を確認したい | [CHANGELOG](../CHANGELOG.md) |
 
-最短経路は、Web版で画像とtargetを選び、変換後previewを確認してproject `.h`をdownloadすることです。
+最短経路は、Web版で画像と出力先libraryを選び、変換後previewを確認してproject ZIPをdownloadすることです。
 継続的に生成する場合は、Webから`.imagesconfig`を保存し、CLIのdirectory buildと`--check`へ移行します。
 
 [リポジトリTOPへ戻る](../README.ja.md)

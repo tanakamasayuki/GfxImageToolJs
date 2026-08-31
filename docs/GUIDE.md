@@ -30,6 +30,31 @@ Conversion also solves several practical problems:
 - choosing formats for a collection of images, not just one file at a time; and
 - previewing the pixels that will really be decoded before using them in firmware.
 
+## What is the output library?
+
+Embedded C/C++ programs commonly draw through a graphics library such as Adafruit GFX or TinyGFX
+rather than sending an image file straight to a display. The `Target`, shown as `Output library` in
+the browser, asks which graphics library will consume the generated header. It is not a display
+model selector.
+
+Libraries differ in supported color formats, bit and byte order, declarations, and drawing calls.
+Selecting one restricts conversion to compatible formats and adds a matching usage example to the
+header.
+
+| Output library | Choose it when |
+| --- | --- |
+| Generic C/C++ arrays | custom drawing code or a driver reads the array directly |
+| Adafruit GFX | firmware uses the `Adafruit_GFX` drawing API |
+| Arduino GFX | firmware uses `Arduino_GFX` |
+| LovyanGFX | firmware uses `LovyanGFX` |
+| TFT_eSPI | firmware uses `TFT_eSPI` |
+| U8g2 | a mostly monochrome display is drawn through `U8g2` |
+| TinyGFX | firmware uses `CellImage`, compressed formats, and set optimization |
+
+If uncertain, inspect the firmware's `#include` directives and the function that draws an image.
+Generic arrays are useful before a library has been selected, but regenerate for the real library
+before device integration. Formats with the same RGB565 name can still require different byte order.
+
 ## Start with the browser workspace
 
 The [browser workspace](https://tanakamasayuki.github.io/GfxImageToolJs/) performs conversion locally;
@@ -37,11 +62,14 @@ your images are not uploaded. It shows the original and converted result and can
 previews, and configuration.
 
 1. Drop or choose one or more images.
-2. Select your graphics library under `Target`.
-3. Leave `Color mode` and `Format` set to `auto` at first.
+2. Select the graphics library under `Output library`.
+3. Start with automatic color treatment and the initially suggested pixel format.
 4. Inspect the converted preview, especially edges and transparent areas.
-5. Choose `Download project .h`.
-6. Optionally save `.imagesconfig` so the CLI can reproduce the project later.
+5. Choose `Download project ZIP` to save the header, configuration, report, and previews together.
+6. Download the project `.h` or `.imagesconfig` separately when needed.
+
+An existing `.imagesconfig` can be dropped with the images or before them. Per-image sections are
+also applied when a matching image is added later.
 
 Adding several images at once is useful. For TinyGFX, the tool can then reduce total flash use by
 accounting for decoders shared by the whole image set.
