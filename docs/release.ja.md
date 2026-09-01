@@ -56,6 +56,13 @@ releaseする差分がすべて説明され、空でないことを確認しま�
 npm version patch              # 必要に応じて minor / major
 ```
 
+初回公開で`package.json`が既に目的の`0.1.0`なら、versionを進めずCHANGELOG見出し、release commit、
+tagを作るため次を使います。
+
+```sh
+npm version 0.1.0 --allow-same-version
+```
+
 ## npm公開とpush
 
 npm login状態、package名、公開先accountを確認してから実行します。

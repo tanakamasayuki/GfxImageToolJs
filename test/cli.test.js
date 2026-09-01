@@ -7,9 +7,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { createCanvas } from '@napi-rs/canvas';
+import { VERSION } from '../src/index.js';
 
 const exec = promisify(execFile);
 const cli = new URL('../bin/gfx-image-tool.js', import.meta.url).pathname;
+const expectedTool = { name: 'gfx-image-tool', version: VERSION };
 
 async function fixture() {
   const dir = await mkdtemp(join(tmpdir(), 'gfx-image-tool-'));
@@ -29,6 +31,7 @@ test('CLI builds a header from PNG', async () => {
   const out = join(dir, 'pixel.h');
   const { stdout } = await exec(process.execPath, [cli, 'build', path, '--format', 'rgb565be', '--out', out, '--json']);
   const result = JSON.parse(stdout);
+  assert.deepEqual(result.tool, expectedTool);
   assert.equal(result.bytes, 4);
   assert.equal(result.format, 'rgb565be');
   const header = await readFile(out, 'utf8');
@@ -39,6 +42,7 @@ test('CLI inspect emits machine-readable candidates', async () => {
   const { path } = await fixture();
   const { stdout } = await exec(process.execPath, [cli, 'inspect', path, '--json']);
   const result = JSON.parse(stdout);
+  assert.deepEqual(result.tool, expectedTool);
   assert.equal(result.width, 2);
   assert.equal(result.height, 1);
   assert.equal(result.candidates.length, 10);
@@ -56,6 +60,7 @@ test('CLI initializes, builds, and checks a directory project', async () => {
   const { dir, path } = await fixture();
   const init = await exec(process.execPath, [cli, 'init', dir, '--json']);
   const initialized = JSON.parse(init.stdout);
+  assert.deepEqual(initialized.tool, expectedTool);
   assert.equal(initialized.status, 'created');
   assert.equal(initialized.path, join(dir, 'images', '.imagesconfig'));
   await mkdir(join(dir, 'images'), { recursive: true });
@@ -64,10 +69,13 @@ test('CLI initializes, builds, and checks a directory project', async () => {
   await unlink(path);
   const build = await exec(process.execPath, [cli, 'build', dir, '--json']);
   const built = JSON.parse(build.stdout);
+  assert.deepEqual(built.tool, expectedTool);
   assert.equal(built.count, 1);
   assert.equal(built.root, join(dir, 'images'));
   assert.equal(built.results[0].path, '../images.h');
   assert.equal(built.manifest.path, '.gfx-image-tool/headers.json');
+  const inspected = JSON.parse((await exec(process.execPath, [cli, 'inspect', dir, '--json'])).stdout);
+  assert.deepEqual(inspected.tool, expectedTool);
   await access(join(dir, 'images.h'));
   const check = await exec(process.execPath, [cli, 'build', dir, '--check', '--json']);
   assert.equal(JSON.parse(check.stdout).results[0].status, 'upToDate');

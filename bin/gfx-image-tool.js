@@ -10,6 +10,12 @@ import { decodeEncodedImage, emitCSource, encodeImage, grayscaleImage, inspectIm
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const VERSION = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).version;
+const TOOL = Object.freeze({ name: 'gfx-image-tool', version: VERSION });
+
+/** @param {Record<string, unknown>} result */
+function writeJson(result) {
+  process.stdout.write(`${JSON.stringify({ tool: TOOL, ...result }, null, 2)}\n`);
+}
 
 const USAGE = `gfx-image-tool — convert images into embedded C/C++ assets
 
@@ -115,7 +121,7 @@ async function run(command, argv) {
   if (command === 'init') {
     if (parsed.values.format || parsed.values.name || parsed.values.prefix || parsed.values.check || parsed.values.preview || parsed.values['preview-layout']) throw new CliError('init accepts only --json and --help.', 3);
     const result = await createImagesConfig(input);
-    if (parsed.values.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    if (parsed.values.json) writeJson(result);
     else console.error(`${result.path}  ${result.status === 'created' ? 'created' : 'already exists (unchanged)'}`);
     return;
   }
@@ -194,7 +200,7 @@ async function run(command, argv) {
           vblit: built.optimization.vblit,
         } : undefined,
       };
-      if (parsed.values.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      if (parsed.values.json) writeJson(result);
       else {
         for (const warning of built.warnings) console.error(`warning: ${warning.message}`);
         console.log(`${result.root}  ${result.count} images  -> ${result.outputRoot}`);
@@ -240,7 +246,7 @@ async function run(command, argv) {
       previewManifest: previewGeneration.manifest ? { ...previewGeneration.manifest, path: relative(built.root, previewGeneration.manifest.path).replaceAll('\\', '/') } : undefined,
       stalePreviews: previewGeneration.stale.map((item) => ({ ...item, path: relative(built.root, item.path).replaceAll('\\', '/') })),
     };
-    if (parsed.values.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    if (parsed.values.json) writeJson(result);
     else {
       for (const warning of built.warnings) console.error(`warning: ${warning.message}`);
       for (const item of result.results) console.error(`${item.path}  ${item.status}`);
@@ -305,7 +311,7 @@ async function run(command, argv) {
         },
       } : undefined,
     };
-    if (parsed.values.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    if (parsed.values.json) writeJson(result);
     else {
       console.log(`${input}  ${result.width}x${result.height}  ${result.colors} colors`);
       for (const candidate of result.candidates) console.log(`  ${candidate.format.padEnd(20)} ${String(candidate.bytes).padStart(8)} B`);
@@ -371,7 +377,7 @@ async function run(command, argv) {
     ...(preview ? { preview } : {}),
     ...(comparisonPreview ? { comparisonPreview } : {}),
   };
-  if (parsed.values.json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  if (parsed.values.json) writeJson(result);
   else {
     console.error(`${output}  ${status}  ${tiny?.format ?? format}  ${encoded.data.length} B  (${image.width}x${image.height})`);
     for (const item of previewOutputs) console.error(`${item.path}  ${item.status}  preview`);

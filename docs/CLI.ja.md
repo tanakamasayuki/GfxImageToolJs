@@ -40,6 +40,13 @@ gfx-image-tool init [directory]
 | `--check` | 書き込まず、差分または欠落時に終了コード2 |
 | `--json` | stdoutへJSON reportを出力 |
 
+すべての`--json`出力は、生成に使用したCLIを識別する次のfieldから始まります。生成headerへversion
+commentは埋め込まないため、tool更新だけでheader差分が発生することはありません。
+
+```json
+{ "tool": { "name": "gfx-image-tool", "version": "0.1.0" } }
+```
+
 TinyGFXでは`--decoder-cost <N>`で1形式分の固定コストを変更できます。
 `--prefer-bitmap h|v`は同容量の1bpp形式を安定して選ぶための指定です。
 `--monochrome`を付けると、3色以上の画像もthreshold処理して1bpp候補へ加えます。

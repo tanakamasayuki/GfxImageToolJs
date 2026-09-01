@@ -64,8 +64,8 @@
   },
   "homepage": "https://tanakamasayuki.github.io/GfxImageToolJs/",
   "scripts": {
-    "test": "node --test \"test/*.test.js\"",
-    "test:watch": "node --test --watch \"test/*.test.js\"",
+    "test": "node scripts/run-tests.js",
+    "test:watch": "node scripts/run-tests.js --watch",
     "build": "node scripts/build.js",
     "build:site": "node scripts/build-site.js",
     "serve": "node scripts/serve.js",

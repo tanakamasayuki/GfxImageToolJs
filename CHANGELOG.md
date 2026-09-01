@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- (EN) Run the test suite portably on the supported Node.js 20 baseline and add Node.js 20 to CI alongside Node.js 22.
+- (JA) 対応下限のNode.js 20でもtest suiteを起動できる指定へ直し、Node.js 22と並べてCI対象へ追加。
+- (EN) Add `tool.name` and `tool.version` metadata to every CLI `--json` result without changing generated headers.
+- (JA) 生成headerを変えず、全CLI `--json`結果へ`tool.name`と`tool.version`を追加。
 - (EN) Replace opaque TinyGFX fixed-format failures with image-specific palette diagnostics showing the actual RGB565 color count, transparency budget, format limit, and corrective settings.
 - (JA) TinyGFX固定形式の抽象的な変換失敗を、対象画像・実RGB565色数・透過色枠・形式上限・修正設定を示す具体的な診断へ改善。
 - (EN) Move preview tracking into the disposable `images/.gfx-image-tool/previews.json` cache so committed preview directories contain only reviewable images, and clarify that previews are disabled until configured.

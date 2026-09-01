@@ -40,6 +40,15 @@ existing configuration.
 | `--check` | Do not write; exit 2 for missing, different, or stale output |
 | `--json` | Write a machine-readable report to stdout |
 
+Every `--json` result starts with metadata identifying the CLI that produced it:
+
+```json
+{ "tool": { "name": "gfx-image-tool", "version": "0.1.0" } }
+```
+
+The version is not embedded in generated headers, so upgrading the tool alone does not create a
+header diff.
+
 For TinyGFX, `--decoder-cost <N>` changes the fixed cost per format, `--prefer-bitmap h|v`
 resolves equal-size 1bpp candidates, and `--monochrome` admits thresholded 1bpp candidates for
 images with more than two colors. `--aligned-vblit` prefers vertical 1bpp and reports the measured

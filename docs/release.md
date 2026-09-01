@@ -59,6 +59,13 @@ change is needed, follow semantic versioning.
 npm version patch              # use minor or major when appropriate
 ```
 
+For an initial release whose `package.json` already contains the intended `0.1.0`, keep that version
+and create the changelog heading, release commit, and tag with:
+
+```sh
+npm version 0.1.0 --allow-same-version
+```
+
 ## Publish and push
 
 Confirm npm authentication, package name, and publishing account before running:
