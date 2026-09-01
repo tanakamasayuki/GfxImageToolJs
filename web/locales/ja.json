@@ -30,6 +30,8 @@
   "images.replaced": "{name}を差し替えました",
   "images.failed": "変換失敗",
   "images.computeError": "このプロジェクトを変換できませんでした: {message}",
+  "error.tinyPaletteLimitTransparent": "{image}は「TinyGFX RLE 4bitパレット」では変換できません。変換後は{colors}色（表示色{visible}色 + 透明色1色）ですが、この形式は合計{limit}色までです。「色の扱い」を「色数を減らしたパレットカラー」にして「最大色数」を{suggested}以下にするか、「画素データ形式」を「自動選択」にしてください。",
+  "error.tinyPaletteLimitOpaque": "{image}は「TinyGFX RLE 4bitパレット」では変換できません。変換後は{colors}色ですが、この形式は合計{limit}色までです。「色の扱い」を「色数を減らしたパレットカラー」にして「最大色数」を{suggested}以下にするか、「画素データ形式」を「自動選択」にしてください。",
   "editor.title": "選択画像の設定",
   "editor.inherit": "共通設定を使用",
   "editor.mode": "色の扱い（個別指定）",

@@ -30,6 +30,8 @@
   "images.replaced": "Replaced {name}",
   "images.failed": "Conversion failed",
   "images.computeError": "This project could not be converted: {message}",
+  "error.tinyPaletteLimitTransparent": "{image} cannot be converted as a TinyGFX RLE 4-bit palette image. It has {colors} converted colors ({visible} visible + 1 transparency key), but this format supports {limit} total. Set Color handling to Reduced palette color and Maximum colors to {suggested} or fewer, or set Pixel data format to Auto.",
+  "error.tinyPaletteLimitOpaque": "{image} cannot be converted as a TinyGFX RLE 4-bit palette image. It has {colors} converted colors, but this format supports {limit} total. Set Color handling to Reduced palette color and Maximum colors to {suggested} or fewer, or set Pixel data format to Auto.",
   "editor.title": "Selected image",
   "editor.inherit": "Project default",
   "editor.mode": "Mode override",

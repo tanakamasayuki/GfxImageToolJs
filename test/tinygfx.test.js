@@ -145,6 +145,33 @@ test('TinyGFX forced incompatible format identifies the image', () => {
   assert.throws(() => optimizeTinyImageSet([{ key: 'icons/color.png', image: color, allowedFormats: ['rlepal4'] }]), /icons\/color\.png/);
 });
 
+test('TinyGFX palette limit error explains color count, transparency budget, and recovery', () => {
+  const pixels = [];
+  for (let color = 0; color < 16; color++) pixels.push(color * 8, 0, 0, 255);
+  pixels.push(0, 0, 0, 0);
+  const image = createImage(17, 1, pixels);
+  assert.throws(
+    () => optimizeTinyImageSet([{
+      key: '13', label: 'icons/13.png', image, alphaThreshold: 128, allowedFormats: ['rlepal4'],
+    }]),
+    (error) => {
+      assert.equal(/** @type {{code?: string}} */ (error).code, 'TINYGFX_PALETTE_COLOR_LIMIT');
+      assert.deepEqual(/** @type {{details?: object}} */ (error).details, {
+        image: 'icons/13.png', format: 'rlepal4', colorCount: 17, visibleColorCount: 16,
+        transparencyColors: 1, maxColors: 16, suggestedVisibleColors: 15,
+      });
+      assert.match(/** @type {Error} */ (error).message, /16 visible \+ 1 transparency key/);
+      assert.match(/** @type {Error} */ (error).message, /color mode to indexed with at most 15 visible colors/);
+      return true;
+    },
+  );
+
+  assert.throws(
+    () => optimizeTinyImage(image, { alphaThreshold: 128, allowedFormats: ['rlepal4'] }),
+    (error) => /** @type {{code?: string}} */ (error).code === 'TINYGFX_PALETTE_COLOR_LIMIT',
+  );
+});
+
 test('TinyGFX accepts an explicit non-colliding transparent color', () => {
   const image = createImage(2, 1, [0, 0, 0, 255, 255, 255, 255, 0]);
   const raw = encodeTinyCandidates(image, { alphaThreshold: 128, transparentColor: 0x1234 })

@@ -1,5 +1,7 @@
 // @ts-check
 import { encodeTinyCandidates } from '../format/tinygfx.js';
+import { rgb565 } from '../format/registry.js';
+import { EncodeConstraintError } from '../util/errors.js';
 
 /** @typedef {import('../model/image.js').GfxImage} GfxImage */
 /** @typedef {import('../format/registry.js').EncodedImage} EncodedImage */
@@ -39,7 +41,7 @@ export function tinyDecoderSetCost(formats, decoderCost = 400) {
 }
 
 /**
- * @param {{key: string, image: GfxImage, monochrome?: boolean, threshold?: number, alphaThreshold?: number, transparentColor?: number, invert?: boolean, dither?: 'none'|'floyd-steinberg'|'bayer2'|'bayer4'|'bayer8', allowedFormats?: string[]}[]} inputs
+ * @param {{key: string, label?: string, image: GfxImage, monochrome?: boolean, threshold?: number, alphaThreshold?: number, transparentColor?: number, invert?: boolean, dither?: 'none'|'floyd-steinberg'|'bayer2'|'bayer4'|'bayer8', allowedFormats?: string[]}[]} inputs
  * @param {{decoderCost?: number, allowedFormats?: string[], preferBitmap?: 'horizontal'|'vertical'}} [options]
  */
 export function optimizeTinyImageSet(inputs, options = {}) {
@@ -61,7 +63,7 @@ export function optimizeTinyImageSet(inputs, options = {}) {
       const id = tinyCandidateId(encoded);
       return !input.allowedFormats || input.allowedFormats.includes(id) ? [[id, encoded]] : [];
     }));
-    if (!filtered.size) throw new Error(`${input.key}: no allowed TinyGFX format can encode this image.`);
+    if (!filtered.size) throw tinyFormatError(input);
     return {
       input,
       candidates: filtered,
@@ -94,7 +96,20 @@ export function optimizeTinyImageSet(inputs, options = {}) {
         && candidate.formats.map((format) => rank.indexOf(format)).join(',')
           < best.formats.map((format) => rank.indexOf(format)).join(','))) best = candidate;
   }
-  if (!best) throw new Error('No allowed TinyGFX format can encode every image.');
+  if (!best) {
+    const unavailable = perImage.find((item) => {
+      const permitted = item.input.allowedFormats ?? allowed;
+      return !permitted.some((format) => allowed.includes(format) && item.candidates.has(format));
+    });
+    if (unavailable) {
+      const permitted = (unavailable.input.allowedFormats ?? allowed).filter((format) => allowed.includes(format));
+      throw tinyFormatError({ ...unavailable.input, allowedFormats: permitted });
+    }
+    throw new EncodeConstraintError(
+      'TINYGFX_FORMAT_SET_INCOMPATIBLE',
+      'The selected TinyGFX format set cannot encode every image. Select format auto or loosen per-image format settings.',
+    );
+  }
   const report = perImage.map((item) => {
     const candidates = Array.from(item.candidates, ([format, encoded]) => ({ format, bytes: encodedBytes(encoded) }))
       .sort((a, b) => a.bytes - b.bytes || rank.indexOf(a.format) - rank.indexOf(b.format));
@@ -110,6 +125,43 @@ export function optimizeTinyImageSet(inputs, options = {}) {
     };
   });
   return { ...best, report };
+}
+
+/**
+ * Explain the common fixed-format failures with values the user can act on.
+ * @param {{key: string, label?: string, image: GfxImage, alphaThreshold?: number, allowedFormats?: string[]}} input
+ */
+function tinyFormatError(input) {
+  const image = input.label ?? input.key;
+  if (input.allowedFormats?.length === 1 && input.allowedFormats[0] === 'rlepal4') {
+    const visible = new Set();
+    let hasTransparency = false;
+    for (let p = 0; p < input.image.width * input.image.height; p++) {
+      const at = p * 4;
+      if (input.alphaThreshold !== undefined && input.image.pixels[at + 3] < input.alphaThreshold) {
+        hasTransparency = true;
+      } else {
+        visible.add(rgb565(input.image.pixels[at], input.image.pixels[at + 1], input.image.pixels[at + 2]));
+      }
+    }
+    const transparencyColors = hasTransparency ? 1 : 0;
+    const colorCount = visible.size + transparencyColors;
+    if (colorCount > 16) {
+      const suggestedVisibleColors = 16 - transparencyColors;
+      const transparency = hasTransparency ? ` (${visible.size} visible + 1 transparency key)` : '';
+      return new EncodeConstraintError(
+        'TINYGFX_PALETTE_COLOR_LIMIT',
+        `${image}: TinyGFX RLE 4-bit palette cannot encode ${colorCount} RGB565 colors${transparency}; its limit is 16 total colors. Set color mode to indexed with at most ${suggestedVisibleColors} visible colors, or select format auto, raw565, or rle565.`,
+        { image, format: 'rlepal4', colorCount, visibleColorCount: visible.size, transparencyColors, maxColors: 16, suggestedVisibleColors },
+      );
+    }
+  }
+  const formats = input.allowedFormats?.join(', ') || 'the selected formats';
+  return new EncodeConstraintError(
+    'TINYGFX_FORMAT_INCOMPATIBLE',
+    `${image}: TinyGFX format ${formats} cannot encode this image with the current color and transparency settings. Select format auto or change the image color settings.`,
+    { image, formats: input.allowedFormats ?? [] },
+  );
 }
 
 /** @param {GfxImage} image @param {{decoderCost?: number, allowedFormats?: string[], preferBitmap?: 'horizontal'|'vertical', monochrome?: boolean, threshold?: number, alphaThreshold?: number, transparentColor?: number, invert?: boolean, dither?: 'none'|'floyd-steinberg'|'bayer2'|'bayer4'|'bayer8'}} [options] */

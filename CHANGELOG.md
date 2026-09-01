@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- (EN) Replace opaque TinyGFX fixed-format failures with image-specific palette diagnostics showing the actual RGB565 color count, transparency budget, format limit, and corrective settings.
+- (JA) TinyGFX固定形式の抽象的な変換失敗を、対象画像・実RGB565色数・透過色枠・形式上限・修正設定を示す具体的な診断へ改善。
 - (EN) Move preview tracking into the disposable `images/.gfx-image-tool/previews.json` cache so committed preview directories contain only reviewable images, and clarify that previews are disabled until configured.
 - (JA) preview追跡情報を使い捨ての`images/.gfx-image-tool/previews.json`へ移し、commit対象のpreview directoryを画像だけに整理。設定するまでpreviewが無効であることも雛形へ明記。
 - (EN) Add Embed Asset Tool-style image count, name, data, size, dimension, and format indexes to bundle headers, plus directly drawable TinyGFX reference indexes.

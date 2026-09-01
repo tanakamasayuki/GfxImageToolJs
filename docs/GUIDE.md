@@ -118,6 +118,9 @@ An icon containing red, blue, white, and transparency does not need 256 distinct
 mode and `Colors` set a maximum; similar source colors are merged to fit. This is color reduction,
 or quantization. It works well for icons and pixel art. A photograph reduced to 16 colors will often
 show bands or patches.
+For a transparent TinyGFX 4-bit palette image, the transparency key consumes one of the 16 palette
+entries, leaving at most 15 visible colors. If that limit is exceeded, the Web UI and CLI report the
+actual color count and the maximum setting that will fit.
 
 ### 3. Dithering
 

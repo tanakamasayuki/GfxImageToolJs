@@ -222,7 +222,7 @@ function recompute() {
     let results;
     if (settings.target === 'tinygfx') {
       optimization = optimizeTinyImageSet(prepared.map(({ item, image, effective }) => ({
-        key: String(item.id), image,
+        key: String(item.id), label: item.name, image,
         monochrome: effective.mode === 'monochrome', threshold: Number(effective.threshold),
         invert: false,
         dither: /** @type {'none'|'floyd-steinberg'|'bayer2'|'bayer4'|'bayer8'} */ (effective.dither),
@@ -275,10 +275,27 @@ function recompute() {
     setStatus(t('status.ready', { count: images.length }));
   } catch (error) {
     computed = null;
-    computeError = /** @type {Error} */ (error).message;
+    computeError = friendlyConversionError(error);
     setStatus(t('status.error', { message: computeError }), true);
   }
   renderAll();
+}
+
+/** @param {unknown} error */
+function friendlyConversionError(error) {
+  const value = /** @type {{code?: string, message?: string, details?: Record<string, unknown>}} */ (error);
+  if (value?.code === 'TINYGFX_PALETTE_COLOR_LIMIT') {
+    const details = value.details ?? {};
+    const key = Number(details.transparencyColors) > 0 ? 'error.tinyPaletteLimitTransparent' : 'error.tinyPaletteLimitOpaque';
+    return t(key, {
+      image: String(details.image ?? ''),
+      colors: Number(details.colorCount),
+      visible: Number(details.visibleColorCount),
+      limit: Number(details.maxColors),
+      suggested: Number(details.suggestedVisibleColors),
+    });
+  }
+  return value?.message || String(error);
 }
 
 /** @param {string} path */
