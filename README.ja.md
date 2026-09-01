@@ -4,7 +4,7 @@
 
 **公開URL:** [ブラウザ版](https://tanakamasayuki.github.io/GfxImageToolJs/) ·
 [npmパッケージ](https://www.npmjs.com/package/gfx-image-tool) ·
-[GitHub Releases](https://github.com/tanakamasayuki/GfxImageToolJs/releases)
+[変更履歴](CHANGELOG.md)
 
 PNG、JPEG、GIF、BMP、decoderが対応するWebP、またはRGBA画素を、組込み向け画素配列と、そのままincludeできる
 C/C++ヘッダーへ変換します。同じJavaScript coreを、画像を外部へ送らないWeb workspace、

@@ -4,7 +4,7 @@ English | [日本語](README.ja.md)
 
 **Public links:** [Browser workspace](https://tanakamasayuki.github.io/GfxImageToolJs/) ·
 [npm package](https://www.npmjs.com/package/gfx-image-tool) ·
-[GitHub Releases](https://github.com/tanakamasayuki/GfxImageToolJs/releases)
+[Changelog](CHANGELOG.md)
 
 Convert PNG, JPEG, GIF, BMP, supported WebP, or RGBA pixels into embedded pixel arrays and ready-to-include
 C/C++ headers. The same JavaScript core powers a private browser workspace, a reproducible CLI,

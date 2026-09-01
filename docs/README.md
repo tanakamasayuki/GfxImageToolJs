@@ -4,7 +4,7 @@ English | [日本語](README.ja.md)
 
 **Public links:** [Browser workspace](https://tanakamasayuki.github.io/GfxImageToolJs/) ·
 [npm package](https://www.npmjs.com/package/gfx-image-tool) ·
-[GitHub Releases](https://github.com/tanakamasayuki/GfxImageToolJs/releases)
+[Changelog](../CHANGELOG.md)
 
 Choose a document based on what you need:
 
