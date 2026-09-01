@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.0.0
+
 - (EN) Support 240x240 and larger TinyGFX raw/bitmap data, apply the 16-bit data-length limit only to RLE candidates, and identify the failing image in oversize diagnostics.
 - (JA) TinyGFXの240x240以上のraw/bitmap dataを生成可能にし、16 bit data長制約をRLE候補だけへ適用。容量超過診断へ対象画像名も追加。
 - (EN) Warn about unknown configuration sections/keys and unmatched image overrides, explain generation-setting changes during `--check`, improve empty-project guidance, and remove outputs after the final source image is deleted.

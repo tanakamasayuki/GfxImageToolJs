@@ -1,6 +1,6 @@
 {
   "name": "gfx-image-tool",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Convert images into C/C++ graphics assets for embedded display libraries.",
   "type": "module",
   "license": "MIT",
