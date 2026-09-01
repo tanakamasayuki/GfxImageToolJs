@@ -2,7 +2,9 @@
 
 [English](README.md) | 日本語
 
-**Web版:** <https://tanakamasayuki.github.io/GfxImageToolJs/>
+**公開URL:** [Web版](https://tanakamasayuki.github.io/GfxImageToolJs/) ·
+[npmパッケージ](https://www.npmjs.com/package/gfx-image-tool) ·
+[GitHub Releases](https://github.com/tanakamasayuki/GfxImageToolJs/releases)
 
 読む順番は、目的に合わせて選べます。
 
