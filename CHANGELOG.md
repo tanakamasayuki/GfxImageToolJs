@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- (EN) Use installation-free `npx gfx-image-tool` commands throughout user documentation and pin `gfx-image-tool@1.0.0` in CI examples for reproducible generated assets.
+- (JA) 利用者向け文書のCLI例をinstall不要の`npx gfx-image-tool`へ統一し、CI例は生成assetを再現できるよう`gfx-image-tool@1.0.0`へ固定。
+
 ## 1.0.0
 
 - (EN) Support 240x240 and larger TinyGFX raw/bitmap data, apply the 16-bit data-length limit only to RLE candidates, and identify the failing image in oversize diagnostics.

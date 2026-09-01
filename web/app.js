@@ -19,6 +19,7 @@ import {
   rgb565,
   sanitizeIdentifier,
   targetFormats,
+  VERSION,
 } from './gfx-image-tool.js';
 import { applyTranslations, currentLocale, initI18n, setLocale, SUPPORTED_LOCALES, t } from './i18n.js';
 
@@ -661,7 +662,7 @@ project rootから再生成・検査できます:
   npx gfx-image-tool build .
   npx gfx-image-tool build . --check
 
-For CI / CIでは、npx gfx-image-tool@1.0.0 build . --check のようにversionを固定します。
+For CI / CIでは、npx gfx-image-tool@${VERSION} build . --check のようにversionを固定します。
 
 .gfx-image-tool/ is disposable cache and is excluded by images/.gitignore.
 .gfx-image-tool/は再生成可能なcacheで、images/.gitignoreによりgit管理されません。

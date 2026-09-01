@@ -42,6 +42,8 @@ test('web workspace exposes project inputs and core-only module entry', async ()
   assert.match(app, /delete item\.override/);
   assert.match(app, /sourceKey: 'source_key'/);
   assert.match(app, /file\.name\.endsWith\('\.imagesconfig'\)/);
+  assert.match(app, /npx gfx-image-tool build \./);
+  assert.match(app, /npx gfx-image-tool@\$\{VERSION\} build \. --check/);
   assert.match(bridge, /src\/index\.js/);
   assert.match(bridge, /src\/browser\/index\.js/);
 });

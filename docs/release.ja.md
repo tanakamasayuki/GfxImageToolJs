@@ -72,9 +72,9 @@ npm publish --access public
 git push --follow-tags
 ```
 
-`npm publish`の`prepack`はbundleと型定義を再生成します。publish後のCLIはglobal installせず、
-`npx gfx-image-tool@<published-version> --version`で公開versionを確認します。root importは別の一時projectで
-確認します。npm tokenや認証情報はrepositoryへ置きません。
+`npm publish`の`prepack`はbundleと型定義を再生成します。publish後のCLIは空の一時directoryから、
+global installせず`npx gfx-image-tool@<published-version> --version`で公開versionを確認します。
+root importは別の一時projectで確認します。npm tokenや認証情報はrepositoryへ置きません。
 
 ## GitHub Actions
 

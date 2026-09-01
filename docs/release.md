@@ -76,8 +76,9 @@ git push --follow-tags
 ```
 
 The `prepack` hook regenerates bundles and declarations. After publication, verify the published CLI
-without a global install using `npx gfx-image-tool@<published-version> --version`. Verify the root
-import in a separate temporary project. Never store npm tokens or credentials in the repository.
+from an empty temporary directory, without a global install, using
+`npx gfx-image-tool@<published-version> --version`. Verify the root import in a separate temporary
+project. Never store npm tokens or credentials in the repository.
 
 ## GitHub Actions
 
