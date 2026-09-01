@@ -61,6 +61,29 @@ threshold = 99
   assert.equal(resolveImageConfig(config, 'photo.png').color.threshold, 99);
 });
 
+test('config warns about unknown sections, misspelled keys, and unmatched image overrides', async () => {
+  const config = parseImagesConfig(`
+[color]
+fromat = rle565
+[nosuchsection]
+nosuchkey = 3
+[image "iocn.png"]
+format = rle565
+`);
+  assert.deepEqual(config.warnings.map((warning) => warning.code), [
+    'UNKNOWN_CONFIG_KEY', 'UNKNOWN_CONFIG_SECTION',
+  ]);
+  assert.match(config.warnings[0].message, /fromat/);
+  assert.match(config.warnings[1].message, /nosuchsection/);
+
+  const root = await mkdtemp(join(tmpdir(), 'gfx-image-config-warning-'));
+  await png(join(root, 'icon.png'), ['#ff0000']);
+  await writeFile(join(root, '.imagesconfig'), '[image "iocn.png"]\nformat = rle565\n');
+  const built = await buildImageProject(root);
+  assert.equal(built.warnings[0].code, 'UNMATCHED_IMAGE_OVERRIDE');
+  assert.match(built.warnings[0].message, /iocn\.png/);
+});
+
 test('project source_key creates TinyGFX transparency before encoding', async () => {
   const root = await mkdtemp(join(tmpdir(), 'gfx-image-source-key-'));
   await png(join(root, 'keyed.png'), ['#ff00ff', '#ffffff']);
@@ -127,7 +150,24 @@ test('sketch resolution accepts only the canonical images directory', async () =
   assert.equal(await resolveImageProjectDirectory(root), join(root, 'images'));
   assert.equal(await resolveImageProjectDirectory(join(root, 'images')), join(root, 'images'));
   const missing = await mkdtemp(join(tmpdir(), 'gfx-image-resolve-missing-'));
-  await assert.rejects(resolveImageProjectDirectory(missing), /Image project directory not found/);
+  await assert.rejects(resolveImageProjectDirectory(missing), /move or copy the source images into .*images/);
+});
+
+test('bundle project removes its header when the final source image is deleted', async () => {
+  const sketch = await mkdtemp(join(tmpdir(), 'gfx-image-empty-project-'));
+  const root = join(sketch, 'images');
+  await mkdir(root);
+  const source = join(root, 'last.png');
+  await png(source, ['#ff0000']);
+  await writeFile(join(root, '.imagesconfig'), '[general]\noutput_dir = ..\n');
+  await writeImageProject(root);
+  const header = join(sketch, 'images.h');
+  await access(header);
+  await unlink(source);
+  const rebuilt = await writeImageProject(root);
+  assert.equal(rebuilt.images.length, 0);
+  assert.deepEqual(rebuilt.stale, [{ path: header, status: 'removed' }]);
+  await assert.rejects(access(header));
 });
 
 test('project writes one header per image and check is read-only', async () => {

@@ -217,7 +217,6 @@ async function run(command, argv) {
     }
     if (command !== 'build') throw new CliError(`unknown command: ${command}`, 3);
     const built = await writeImageProject(projectInput, projectOptions);
-    if (!built.images.length) throw new CliError(`no matching images in ${projectInput}`, 1);
     const previewDirectory = built.config.preview.outputDir ? resolve(built.root, built.config.preview.outputDir) : undefined;
     if (parsed.values['preview-layout'] !== undefined && !previewDirectory) throw new CliError('--preview-layout requires --preview or [preview] output_dir.', 3);
     const previewGeneration = previewDirectory ? await writeProjectPreviews(
@@ -231,6 +230,7 @@ async function run(command, argv) {
       outputRoot: built.outputRoot,
       count: built.images.length,
       warnings: built.warnings,
+      settingChanges: built.settingChanges,
       manifest: { ...built.manifest, path: relative(built.root, built.manifest.path).replaceAll('\\', '/') },
       stale: built.stale.map((item) => ({ ...item, path: relative(built.root, item.path).replaceAll('\\', '/') })),
       optimization: built.optimization ? {
@@ -249,6 +249,9 @@ async function run(command, argv) {
     if (parsed.values.json) writeJson(result);
     else {
       for (const warning of built.warnings) console.error(`warning: ${warning.message}`);
+      if (parsed.values.check) for (const change of built.settingChanges) {
+        console.error(`warning: generation setting changed: ${change.key}: ${displaySetting(change.before)} -> ${displaySetting(change.after)}`);
+      }
       for (const item of result.results) console.error(`${item.path}  ${item.status}`);
       for (const item of result.previews) console.error(`${item.path}  ${item.status}  preview`);
       console.error(`${result.manifest.path}  ${manifestStatus(result.manifest.status)}`);
@@ -260,6 +263,9 @@ async function run(command, argv) {
     const checkOutputs = [...built.results, ...built.stale, ...previewGeneration.outputs, ...previewGeneration.stale];
     if (checkOutputs.some((item) => item.status === 'mismatch' || item.status === 'missingOutput' || item.status === 'stale')) {
       throw new CliError('--check: generated output is stale, different, or missing', 2);
+    }
+    if (!built.images.length) {
+      throw new CliError(`no matching images in ${projectInput}. Put source images inside ${projectInput}; images in its parent directory are not scanned.`, 1);
     }
     return;
   }
@@ -285,6 +291,7 @@ async function run(command, argv) {
     });
     const tinyFormat = parsed.values.format ?? 'auto';
     const tiny = target === 'tinygfx' ? optimizeTinyImage(image, {
+      label: input,
       decoderCost: decoderCostOption ?? 400,
       preferBitmap: preferBitmapOption ?? 'horizontal',
       monochrome: mode === 'monochrome',
@@ -327,6 +334,7 @@ async function run(command, argv) {
   if (target !== 'tinygfx' && !listFormats().includes(format)) throw new CliError(`unknown format: ${format}`, 3);
   const name = parsed.values.name ?? stem(input);
   const tiny = target === 'tinygfx' ? optimizeTinyImage(image, {
+    label: input,
     decoderCost: decoderCostOption ?? 400,
     preferBitmap: preferBitmapOption ?? 'horizontal',
     monochrome: mode === 'monochrome',
@@ -455,6 +463,11 @@ async function writeProjectPreviews(built, directory, layout, check) {
 /** @param {string} status */
 function manifestStatus(status) {
   return ({ written: 'written manifest', upToDate: 'upToDate manifest', mismatch: 'mismatch manifest', missingOutput: 'missing manifest' })[status] ?? `${status} manifest`;
+}
+
+/** @param {unknown} value */
+function displaySetting(value) {
+  return typeof value === 'string' ? value : JSON.stringify(value);
 }
 
 /** @param {string} format */

@@ -106,6 +106,11 @@ separate value in the optimization report.
 Use `--target tinygfx`; its default format is `auto`. The candidates are `raw565`, `rle565`,
 `rlepal4`, `bitmap1h`, and `bitmap1v`.
 
+TinyGFX stores RLE stream length in a 16-bit field, so `rle565` and `rlepal4` candidates larger
+than 65,535 bytes are excluded. `raw565`, `bitmap1h`, and `bitmap1v` are dimension-driven and may
+contain more data; for example, a 240x240 `raw565` image (115,200 bytes) is supported. A forced
+oversized RLE error names the source image and suggests `auto` or `raw565`.
+
 For projects, set `[alpha] mode = color-key` and `threshold = 128` to preserve source alpha as a
 collision-free TinyGFX transparent color or palette index. Set `[optimize] decoder_cost = 400` and
 `prefer_bitmap = horizontal|vertical` to configure set optimization. Per-image sections may fix a
@@ -133,6 +138,10 @@ prefix, for example `2nd.png` becomes `img_2ndRef`.
 Manifest lines are labeled `upToDate manifest`, `mismatch manifest`, or `missing manifest`. A missing
 cache does not fail `--check`: expected outputs are still checked, with a warning that old split
 outputs could not be detected. A normal build recreates the cache.
+
+Unknown `.imagesconfig` sections and keys, and `[image "..."]` patterns that match no input, are
+reported in `warnings` and on stderr. `--check` also reports generation settings that differ from
+the previous build cache (for example, `target: tinygfx -> generic-c`) before reporting a mismatch.
 
 The JSON `optimization` object reports the selected format set, image data plus palette bytes,
 decoder bytes, and total bytes.

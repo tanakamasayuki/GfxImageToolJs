@@ -145,6 +145,10 @@ mode = monochrome
 
 `format = auto`ではproject内の全画像を集合として最適化します。形式を固定する場合は
 `raw565`、`rle565`、`rlepal4`、`bitmap1h`、`bitmap1v`を指定します。
+TinyGFXでstream長を16 bit fieldから読む`rle565`と`rlepal4`は、65,535 byteを超える候補を
+選択対象から外します。寸法から走査する`raw565`、`bitmap1h`、`bitmap1v`にはこのdata長制約はなく、
+240x240の`raw565`（115,200 byte）も生成できます。大きすぎるRLEを固定した場合は、対象画像名と
+`auto`または`raw565`へ変更する案をerrorに表示します。
 画像別sectionでは`alpha_mode`、`alpha_threshold`、`alpha_color`も上書きできます。不透明な元画像の
 特定RGB色を透明化してから変換するには、画像別に`source_key`を指定します。
 
@@ -172,6 +176,10 @@ cacheに載っていない利用者ファイルは削除対象になりません
 `--check`はcache自体も`upToDate manifest`、`mismatch manifest`、`missing manifest`としてpath付きで
 表示しますが、cacheの欠落・差分だけでは終了2にしません。cacheが無い回は期待する出力だけを検査し、
 以前の孤立ファイルを特定できない旨をwarningにします。通常buildはcacheを作り直します。
+
+`.imagesconfig`の未知section・未知keyと、入力画像に一致しない`[image "..."]`は、stderrおよび
+JSONの`warnings`へ表示します。`--check`時に前回buildのcacheと生成設定が異なる場合も、たとえば
+`target: tinygfx -> generic-c`のように、生成物の不一致を報告する前に設定差を表示します。
 
 入力名が数字またはunderscoreで始まる場合、C/C++の予約識別子を避けるためsymbolへ`img_`
 系prefixを付けます。例: `2nd.png` → `img_2ndRef`。

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- (EN) Support 240x240 and larger TinyGFX raw/bitmap data, apply the 16-bit data-length limit only to RLE candidates, and identify the failing image in oversize diagnostics.
+- (JA) TinyGFXの240x240以上のraw/bitmap dataを生成可能にし、16 bit data長制約をRLE候補だけへ適用。容量超過診断へ対象画像名も追加。
+- (EN) Warn about unknown configuration sections/keys and unmatched image overrides, explain generation-setting changes during `--check`, improve empty-project guidance, and remove outputs after the final source image is deleted.
+- (JA) 未知の設定section/keyと一致しない画像overrideを警告し、`--check`で生成設定差を説明。空projectの案内と最後の元画像削除後の生成物掃除も改善。
 - (EN) Run the test suite portably on the supported Node.js 20 baseline and add Node.js 20 to CI alongside Node.js 22.
 - (JA) 対応下限のNode.js 20でもtest suiteを起動できる指定へ直し、Node.js 22と並べてCI対象へ追加。
 - (EN) Add `tool.name` and `tool.version` metadata to every CLI `--json` result without changing generated headers.

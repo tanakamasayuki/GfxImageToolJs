@@ -184,7 +184,7 @@ npm install --global gfx-image-tool
 gfx-image-tool init ./MySketch
 # ./MySketch/images/へ画像を置く
 gfx-image-tool build ./MySketch --target tinygfx
-gfx-image-tool build ./MySketch --check
+gfx-image-tool build ./MySketch --target tinygfx --check
 ```
 
 `init`は`MySketch/images/.imagesconfig`を作り、既定で全画像を`MySketch/images.h`へまとめます。

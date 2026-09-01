@@ -50,8 +50,8 @@ function palette565(palette) {
 
 /** @param {import('../format/registry.js').EncodedImage} encoded @param {string} name @param {number} align @param {string} linkage @param {boolean} fragment */
 function emitTinyGfx(encoded, name, align, linkage, fragment) {
-  if (encoded.width > 0xffff || encoded.height > 0xffff || encoded.data.length > 0xffff) {
-    throw new EncodeConstraintError('TINYGFX_FIELD_OVERFLOW', 'TinyGFX width, height, and data length must fit uint16_t.');
+  if (encoded.width > 0xffff || encoded.height > 0xffff) {
+    throw new EncodeConstraintError('TINYGFX_FIELD_OVERFLOW', 'TinyGFX width and height must fit uint16_t.');
   }
   const ops = {
     'tinygfx-raw565': 'Raw565',
@@ -61,6 +61,17 @@ function emitTinyGfx(encoded, name, align, linkage, fragment) {
     'bitmap1-vertical': 'Bitmap1v',
   }[/** @type {'tinygfx-raw565'|'tinygfx-rle565'|'tinygfx-rlepal4'|'bitmap1-msb'|'bitmap1-vertical'} */ (encoded.format)];
   if (!ops) throw new EncodeConstraintError('TARGET_FORMAT_MISMATCH', `tinygfx does not accept ${encoded.format}.`);
+  const readsDataLength = encoded.format === 'tinygfx-rle565' || encoded.format === 'tinygfx-rlepal4';
+  if (readsDataLength && encoded.data.length > 0xffff) {
+    throw new EncodeConstraintError(
+      'TINYGFX_RLE_DATA_LENGTH_LIMIT',
+      `TinyGFX ${encoded.format} data is ${encoded.data.length} bytes; RLE data length must fit uint16_t (65535 bytes). Select raw565 or auto, or reduce the image dimensions.`,
+      { format: encoded.format, dataBytes: encoded.data.length, maxBytes: 0xffff },
+    );
+  }
+  // Raw and bitmap decoders derive their bounds from width and height and do not
+  // read CellImage::dataLen. Use zero when the real byte count cannot be represented.
+  const dataLengthField = encoded.data.length <= 0xffff ? encoded.data.length : 0;
   let palette = encoded.palette instanceof Uint16Array ? encoded.palette : undefined;
   if ((encoded.format === 'bitmap1-msb' || encoded.format === 'bitmap1-vertical') && !palette) palette = Uint16Array.from([0x0000, 0xffff]);
   const paletteName = palette ? `${name}Palette` : 'NULL';
@@ -91,7 +102,7 @@ function emitTinyGfx(encoded, name, align, linkage, fragment) {
     `  ${name}Data,`,
     `  ${paletteName},`,
     `  ${encoded.width}, ${encoded.height},`,
-    `  ${encoded.data.length},`,
+    `  ${dataLengthField},`,
     `  0x${(encoded.transparent?.value ?? 0).toString(16).toUpperCase().padStart(4, '0')},`,
     `  ${palette?.length ?? 0},`,
     `  ${encoded.transparent ? 1 : 0},`,

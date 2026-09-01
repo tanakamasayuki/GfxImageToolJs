@@ -76,6 +76,35 @@ test('TinyGFX emitter builds CellImage and ops reference', () => {
   assert.equal(emitted.usage, 'lcd.drawImage(&iconRef, x, y);');
 });
 
+test('TinyGFX raw565 supports a 240x240 image while oversized RLE is rejected by format selection', () => {
+  const pixels = new Uint8Array(240 * 240 * 4);
+  for (let pixel = 0; pixel < 240 * 240; pixel++) {
+    const at = pixel * 4;
+    pixels[at] = pixel % 2 ? 255 : 0;
+    pixels[at + 2] = pixel % 2 ? 0 : 255;
+    pixels[at + 3] = 255;
+  }
+  const image = createImage(240, 240, pixels);
+  const raw = encodeTinyRaw565(image);
+  assert.equal(raw.data.length, 115200);
+  const emitted = emitCSource(raw, 'tinygfx', { name: 'splash240' });
+  assert.match(emitted.source, /240, 240,\n  0,/);
+
+  const automatic = optimizeTinyImageSet([
+    { key: 'splash240.png', image, allowedFormats: ['raw565', 'rle565'] },
+  ], { allowedFormats: ['raw565', 'rle565'] });
+  assert.equal(automatic.images[0].format, 'raw565');
+  assert.throws(
+    () => optimizeTinyImageSet([{ key: 'splash240.png', image, allowedFormats: ['rle565'] }]),
+    (error) => {
+      assert.equal(/** @type {{code?: string}} */ (error).code, 'TINYGFX_RLE_DATA_LENGTH_LIMIT');
+      assert.match(/** @type {Error} */ (error).message, /splash240\.png/);
+      assert.match(/** @type {Error} */ (error).message, /65535 bytes/);
+      return true;
+    },
+  );
+});
+
 test('TinyGFX transparency reserves a non-colliding RGB565 key', () => {
   const image = createImage(2, 1, [
     0, 0, 0, 255,

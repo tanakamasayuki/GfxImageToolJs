@@ -12,7 +12,24 @@ import { buildGlobMatcher } from './ignore.js';
  * @property {{storage: string, align: number, static: boolean}} csource
  * @property {{decoderCost: number, preferBitmap: 'horizontal'|'vertical', alignedVblit: boolean}} optimize
  * @property {{pattern: string, values: Record<string, string>}[]} overrides
+ * @property {{code: string, message: string, section?: string, key?: string, pattern?: string}[]} warnings
  */
+
+const SECTION_KEYS = Object.freeze({
+  general: new Set(['output_dir', 'output_mode', 'output_file', 'prefix', 'target', 'index_header']),
+  input: new Set(['patterns']),
+  color: new Set(['format', 'mode', 'colors', 'dither', 'threshold', 'invert']),
+  alpha: new Set(['mode', 'matte', 'threshold', 'color', 'source_key']),
+  preview: new Set(['output_dir', 'layout']),
+  csource: new Set(['storage', 'align', 'static']),
+  optimize: new Set(['decoder_cost', 'prefer_bitmap', 'aligned_vblit']),
+});
+
+const IMAGE_KEYS = new Set([
+  'target', 'format', 'mode', 'colors', 'dither', 'threshold', 'invert',
+  'alpha_mode', 'alpha_threshold', 'alpha_color', 'source_key', 'matte',
+  'storage', 'align', 'static', 'symbol', 'output', 'decoder_cost', 'prefer_bitmap',
+]);
 
 /** @param {string} text */
 export function parseIniConfig(text) {
@@ -71,6 +88,27 @@ export function parseRgb(value) {
 /** @param {string} text @returns {ImagesConfig} */
 export function parseImagesConfig(text) {
   const sections = parseIniConfig(text);
+  /** @type {ImagesConfig['warnings']} */
+  const warnings = [];
+  for (const section of sections) {
+    const sectionName = section.name.toLowerCase();
+    const imageMatch = /^image\s+["'](.+)["']$/i.exec(section.name);
+    const knownKeys = imageMatch ? IMAGE_KEYS : SECTION_KEYS[/** @type {keyof typeof SECTION_KEYS} */ (sectionName)];
+    if (!knownKeys) {
+      warnings.push({
+        code: 'UNKNOWN_CONFIG_SECTION',
+        section: section.name,
+        message: `.imagesconfig: unknown section [${section.name}]; its settings were ignored.`,
+      });
+      continue;
+    }
+    for (const key of Object.keys(section.values)) if (!knownKeys.has(key)) warnings.push({
+      code: 'UNKNOWN_CONFIG_KEY',
+      section: section.name,
+      key,
+      message: `.imagesconfig: unknown key "${key}" in [${section.name}]; it was ignored.`,
+    });
+  }
   /** @type {(name: string) => Record<string, string>} */
   const values = (name) => Object.assign(
     {},
@@ -144,6 +182,7 @@ export function parseImagesConfig(text) {
       const match = /^image\s+["'](.+)["']$/i.exec(section.name);
       return match ? [{ pattern: match[1], values: section.values }] : [];
     }),
+    warnings,
   };
 }
 

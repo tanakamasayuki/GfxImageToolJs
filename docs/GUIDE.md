@@ -188,7 +188,7 @@ npm install --global gfx-image-tool
 gfx-image-tool init ./MySketch
 # Put images under ./MySketch/images/
 gfx-image-tool build ./MySketch --target tinygfx
-gfx-image-tool build ./MySketch --check
+gfx-image-tool build ./MySketch --target tinygfx --check
 ```
 
 `init` creates `MySketch/images/.imagesconfig` and the build bundles all images into

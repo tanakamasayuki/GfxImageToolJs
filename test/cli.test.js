@@ -102,6 +102,37 @@ test('CLI canonical project honors configured and command-line output directorie
   await access(join(override, 'artwork.h'));
 });
 
+test('CLI check explains generation setting changes', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'gfx-image-setting-change-'));
+  await exec(process.execPath, [cli, 'init', root]);
+  const canvas = createCanvas(1, 1);
+  canvas.getContext('2d').fillRect(0, 0, 1, 1);
+  await writeFile(join(root, 'images', 'pixel.png'), await canvas.encode('png'));
+  await exec(process.execPath, [cli, 'build', root, '--target', 'tinygfx']);
+  await assert.rejects(exec(process.execPath, [cli, 'build', root, '--check']), (error) => {
+    assert.equal(/** @type {{code?: number}} */ (error).code, 2);
+    assert.match(/** @type {{stderr?: string}} */ (error).stderr ?? '', /generation setting changed: target: tinygfx -> generic-c/);
+    return true;
+  });
+});
+
+test('CLI removes generated output after the final project image is deleted', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'gfx-image-final-delete-'));
+  await exec(process.execPath, [cli, 'init', root]);
+  const source = join(root, 'images', 'last.png');
+  await writeFile(source, await createCanvas(1, 1).encode('png'));
+  await exec(process.execPath, [cli, 'build', root]);
+  const header = join(root, 'images.h');
+  await access(header);
+  await unlink(source);
+  await assert.rejects(exec(process.execPath, [cli, 'build', root]), (error) => {
+    assert.equal(/** @type {{code?: number}} */ (error).code, 1);
+    assert.match(/** @type {{stderr?: string}} */ (error).stderr ?? '', /Put source images inside/);
+    return true;
+  });
+  await assert.rejects(access(header));
+});
+
 test('CLI builds an auto-selected TinyGFX CellImage', async () => {
   const { dir } = await fixture();
   const input = join(dir, 'flat.png');
@@ -123,6 +154,36 @@ test('CLI builds an auto-selected TinyGFX CellImage', async () => {
   const report = JSON.parse(inspected.stdout);
   assert.equal(report.optimization.format, 'rle565');
   assert.ok(report.optimization.image.candidates.some((/** @type {{format: string}} */ candidate) => candidate.format === 'raw565'));
+});
+
+test('CLI builds a 240x240 TinyGFX raw565 full-screen image', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'gfx-image-240-'));
+  const input = join(root, 'splash240.png');
+  const output = join(root, 'splash240.h');
+  const canvas = createCanvas(240, 240);
+  const context = canvas.getContext('2d');
+  const pixels = context.createImageData(240, 240);
+  for (let pixel = 0; pixel < 240 * 240; pixel++) {
+    const at = pixel * 4;
+    pixels.data[at] = pixel % 2 ? 255 : 0;
+    pixels.data[at + 2] = pixel % 2 ? 0 : 255;
+    pixels.data[at + 3] = 255;
+  }
+  context.putImageData(pixels, 0, 0);
+  await writeFile(input, await canvas.encode('png'));
+  const built = JSON.parse((await exec(process.execPath, [
+    cli, 'build', input, '--target', 'tinygfx', '--format', 'raw565', '--out', output, '--json',
+  ])).stdout);
+  assert.equal(built.bytes, 115200);
+  assert.equal(built.format, 'raw565');
+  assert.match(await readFile(output, 'utf8'), /240, 240,\n  0,/);
+  await assert.rejects(exec(process.execPath, [
+    cli, 'build', input, '--target', 'tinygfx', '--format', 'rle565', '--out', output,
+  ]), (error) => {
+    assert.match(/** @type {{stderr?: string}} */ (error).stderr ?? '', /splash240\.png/);
+    assert.match(/** @type {{stderr?: string}} */ (error).stderr ?? '', /65535 bytes/);
+    return true;
+  });
 });
 
 test('CLI directory TinyGFX override keeps auto candidates and matches one-image selection', async () => {

@@ -27,6 +27,13 @@ export function encodedBytes(encoded) {
   return encoded.stats.dataBytes + encoded.stats.paletteBytes + encoded.stats.maskBytes;
 }
 
+/** @param {EncodedImage} encoded */
+function tinyCandidateFitsFields(encoded) {
+  if (encoded.width > 0xffff || encoded.height > 0xffff) return false;
+  return (encoded.format !== 'tinygfx-rle565' && encoded.format !== 'tinygfx-rlepal4')
+    || encoded.data.length <= 0xffff;
+}
+
 /** @param {Iterable<string>} formats @param {number} [decoderCost] */
 export function tinyDecoderSetCost(formats, decoderCost = 400) {
   if (!Number.isFinite(decoderCost) || decoderCost < 0) throw new RangeError('decoderCost must be non-negative.');
@@ -59,14 +66,16 @@ export function optimizeTinyImageSet(inputs, options = {}) {
     if (input.allowedFormats) for (const format of input.allowedFormats) {
       if (!TINYGFX_CANDIDATES.includes(format)) throw new Error(`Unknown TinyGFX candidate: ${format}`);
     }
+    const allCandidates = new Map(candidates.map((encoded) => [tinyCandidateId(encoded), encoded]));
     const filtered = new Map(candidates.flatMap((encoded) => {
       const id = tinyCandidateId(encoded);
-      return !input.allowedFormats || input.allowedFormats.includes(id) ? [[id, encoded]] : [];
+      return tinyCandidateFitsFields(encoded) && (!input.allowedFormats || input.allowedFormats.includes(id)) ? [[id, encoded]] : [];
     }));
-    if (!filtered.size) throw tinyFormatError(input);
+    if (!filtered.size) throw tinyFormatError(input, allCandidates);
     return {
       input,
       candidates: filtered,
+      allCandidates,
     };
   });
   /** @type {null | {images: {key: string, format: string, encoded: EncodedImage, bytes: number}[], formats: string[], dataBytes: number, decoderBytes: number, totalBytes: number}} */
@@ -103,7 +112,7 @@ export function optimizeTinyImageSet(inputs, options = {}) {
     });
     if (unavailable) {
       const permitted = (unavailable.input.allowedFormats ?? allowed).filter((format) => allowed.includes(format));
-      throw tinyFormatError({ ...unavailable.input, allowedFormats: permitted });
+      throw tinyFormatError({ ...unavailable.input, allowedFormats: permitted }, unavailable.allCandidates);
     }
     throw new EncodeConstraintError(
       'TINYGFX_FORMAT_SET_INCOMPATIBLE',
@@ -130,8 +139,9 @@ export function optimizeTinyImageSet(inputs, options = {}) {
 /**
  * Explain the common fixed-format failures with values the user can act on.
  * @param {{key: string, label?: string, image: GfxImage, alphaThreshold?: number, allowedFormats?: string[]}} input
+ * @param {Map<string, EncodedImage>} [candidates]
  */
-function tinyFormatError(input) {
+function tinyFormatError(input, candidates) {
   const image = input.label ?? input.key;
   if (input.allowedFormats?.length === 1 && input.allowedFormats[0] === 'rlepal4') {
     const visible = new Set();
@@ -156,6 +166,20 @@ function tinyFormatError(input) {
       );
     }
   }
+  const oversized = (input.allowedFormats ?? []).flatMap((format) => {
+    const encoded = candidates?.get(format);
+    return encoded && (format === 'rle565' || format === 'rlepal4') && encoded.data.length > 0xffff
+      ? [{ format, bytes: encoded.data.length }]
+      : [];
+  });
+  if (oversized.length) {
+    const details = oversized.map((item) => `${item.format} is ${item.bytes} bytes`).join(', ');
+    return new EncodeConstraintError(
+      'TINYGFX_RLE_DATA_LENGTH_LIMIT',
+      `${image}: TinyGFX RLE data length must fit uint16_t (65535 bytes), but ${details}. Select format auto or raw565, or reduce the image dimensions.`,
+      { image, candidates: oversized, maxBytes: 0xffff },
+    );
+  }
   const formats = input.allowedFormats?.join(', ') || 'the selected formats';
   return new EncodeConstraintError(
     'TINYGFX_FORMAT_INCOMPATIBLE',
@@ -164,8 +188,8 @@ function tinyFormatError(input) {
   );
 }
 
-/** @param {GfxImage} image @param {{decoderCost?: number, allowedFormats?: string[], preferBitmap?: 'horizontal'|'vertical', monochrome?: boolean, threshold?: number, alphaThreshold?: number, transparentColor?: number, invert?: boolean, dither?: 'none'|'floyd-steinberg'|'bayer2'|'bayer4'|'bayer8'}} [options] */
+/** @param {GfxImage} image @param {{label?: string, decoderCost?: number, allowedFormats?: string[], preferBitmap?: 'horizontal'|'vertical', monochrome?: boolean, threshold?: number, alphaThreshold?: number, transparentColor?: number, invert?: boolean, dither?: 'none'|'floyd-steinberg'|'bayer2'|'bayer4'|'bayer8'}} [options] */
 export function optimizeTinyImage(image, options = {}) {
-  const result = optimizeTinyImageSet([{ key: 'image', image, monochrome: options.monochrome, threshold: options.threshold, alphaThreshold: options.alphaThreshold, transparentColor: options.transparentColor, invert: options.invert, dither: options.dither }], options);
+  const result = optimizeTinyImageSet([{ key: 'image', label: options.label, image, monochrome: options.monochrome, threshold: options.threshold, alphaThreshold: options.alphaThreshold, transparentColor: options.transparentColor, invert: options.invert, dither: options.dither }], options);
   return { ...result.images[0], decoderBytes: result.decoderBytes, totalBytes: result.totalBytes, report: result.report };
 }

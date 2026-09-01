@@ -40,7 +40,7 @@ async function exists(path) {
  * @param {string} manifestName
  * @param {'headers'|'previews'} kind
  * @param {string[]} expectedPaths
- * @param {{manifestPath?: string}} [options]
+ * @param {{manifestPath?: string, metadata?: Record<string, unknown>}} [options]
  */
 export async function planGeneratedOutputs(root, manifestName, kind, expectedPaths, options = {}) {
   root = resolve(root);
@@ -48,6 +48,8 @@ export async function planGeneratedOutputs(root, manifestName, kind, expectedPat
   const files = [...new Set(expectedPaths.map((path) => managedRelative(root, path)))].sort();
   /** @type {string[]} */
   let previous = [];
+  /** @type {Record<string, unknown>|undefined} */
+  let previousMetadata;
   let hadManifest = true;
   try {
     const parsed = JSON.parse(await readFile(manifestPath, 'utf8'));
@@ -55,6 +57,7 @@ export async function planGeneratedOutputs(root, manifestName, kind, expectedPat
       throw new Error(`Invalid generated manifest: ${manifestPath}`);
     }
     previous = parsed.files;
+    if (parsed.metadata && typeof parsed.metadata === 'object' && !Array.isArray(parsed.metadata)) previousMetadata = parsed.metadata;
   } catch (error) {
     if (/** @type {NodeJS.ErrnoException} */ (error).code !== 'ENOENT') throw error;
     hadManifest = false;
@@ -65,6 +68,7 @@ export async function planGeneratedOutputs(root, manifestName, kind, expectedPat
     const path = managedAbsolute(root, item);
     if (!expected.has(item) && await exists(path)) stale.push(path);
   }
-  const source = `${JSON.stringify({ version: 1, kind, files }, null, 2)}\n`;
-  return { manifestPath, source, stale, hadManifest };
+  const document = { version: 1, kind, files, ...(options.metadata ? { metadata: options.metadata } : {}) };
+  const source = `${JSON.stringify(document, null, 2)}\n`;
+  return { manifestPath, source, stale, hadManifest, previousMetadata };
 }

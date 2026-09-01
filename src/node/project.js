@@ -43,7 +43,7 @@ export async function resolveImageProjectDirectory(directory) {
   if (isImageProjectDirectoryName(basename(root))) return root;
   const nested = join(root, IMAGE_PROJECT_DIR);
   if (await isDirectory(nested)) return nested;
-  throw new Error(`Image project directory not found: ${nested}. Run gfx-image-tool init ${root} first.`);
+  throw new Error(`Image project directory not found: ${nested}. Run gfx-image-tool init ${root}, then move or copy the source images into ${nested}; images beside images/ are not scanned.`);
 }
 
 /** @param {string} path */
@@ -144,8 +144,16 @@ export async function buildImageProject(projectDir, options = {}) {
   const bundleOutput = resolve(outputRoot, config.general.outputFile);
   if (!inside(outputRoot, bundleOutput)) throw new Error(`output_file escapes output_dir: ${config.general.outputFile}`);
   const entries = await collectImageEntries(root, config);
-  /** @type {{code: 'ALPHA_COMPOSITED', image: string, message: string}[]} */
-  const warnings = [];
+  /** @type {{code: string, image?: string, message: string, section?: string, key?: string, pattern?: string}[]} */
+  const warnings = [...config.warnings];
+  for (const override of config.overrides) {
+    const matches = buildGlobMatcher([override.pattern]);
+    if (!entries.some((entry) => matches(entry.relative))) warnings.push({
+      code: 'UNMATCHED_IMAGE_OVERRIDE',
+      pattern: override.pattern,
+      message: `.imagesconfig: [image "${override.pattern}"] did not match any input image; check the path after renaming files.`,
+    });
+  }
   /** @type {PreparedImage[]} */
   const prepared = [];
   const symbols = new Map();
@@ -237,7 +245,7 @@ export async function buildImageProject(projectDir, options = {}) {
       paletteBytes: encoded.stats.paletteBytes,
     });
   }
-  const bundle = config.general.outputMode === 'bundle' ? {
+  const bundle = config.general.outputMode === 'bundle' && images.length ? {
     output: bundleOutput,
     source: emitCBundle(images.map((image, index) => ({
       encoded: image.encoded,
@@ -250,7 +258,7 @@ export async function buildImageProject(projectDir, options = {}) {
     })), { prefix: config.general.prefix || 'images' }).source,
   } : undefined;
   let index;
-  if (config.general.outputMode === 'split' && config.general.indexHeader) {
+  if (images.length && config.general.outputMode === 'split' && config.general.indexHeader) {
     const output = resolve(outputRoot, config.general.indexHeader);
     if (!inside(outputRoot, output)) throw new Error(`index_header escapes output_dir: ${config.general.indexHeader}`);
     const includes = images.map((image) => `#include "${relative(dirname(output), image.output).replaceAll('\\', '/')}"`);
@@ -285,13 +293,15 @@ export async function writeImageProject(projectDir, options = {}) {
     : [...built.images.map((image) => ({ path: image.output, content: image.source })), ...(built.index ? [{ path: built.index.output, content: built.index.source }] : [])];
   const canonicalProject = isImageProjectDirectoryName(basename(built.root));
   const manifestPath = canonicalProject ? join(built.root, IMAGE_PROJECT_STATE_DIR, 'headers.json') : undefined;
+  const metadata = headerGenerationSettings(built.config);
   const generation = await planGeneratedOutputs(
     built.outputRoot,
     HEADER_MANIFEST,
     'headers',
     outputs.map((output) => output.path),
-    manifestPath ? { manifestPath } : undefined,
+    { ...(manifestPath ? { manifestPath } : {}), metadata },
   );
+  const settingChanges = compareGenerationSettings(generation.previousMetadata, metadata);
   /** @type {{path: string, status: 'written'|'upToDate'|'mismatch'|'missingOutput'}[]} */
   const results = [];
   for (const output of outputs) {
@@ -337,7 +347,34 @@ export async function writeImageProject(projectDir, options = {}) {
     await rename(temporary, generation.manifestPath);
     manifest = { path: generation.manifestPath, status: 'written', hadManifest: generation.hadManifest };
   }
-  return { ...built, results, manifest, stale };
+  return { ...built, results, manifest, stale, settingChanges };
+}
+
+/** @param {ImagesConfig} config */
+function headerGenerationSettings(config) {
+  return {
+    target: config.general.target,
+    outputMode: config.general.outputMode,
+    outputFile: config.general.outputFile,
+    prefix: config.general.prefix,
+    indexHeader: config.general.indexHeader,
+    patterns: config.input.patterns,
+    color: config.color,
+    alpha: config.alpha,
+    csource: config.csource,
+    optimize: config.optimize,
+    overrides: config.overrides,
+  };
+}
+
+/** @param {Record<string, unknown>|undefined} previous @param {Record<string, unknown>} current */
+function compareGenerationSettings(previous, current) {
+  if (!previous) return [];
+  return [...new Set([...Object.keys(previous), ...Object.keys(current)])].flatMap((key) => {
+    const before = previous[key];
+    const after = current[key];
+    return JSON.stringify(before) === JSON.stringify(after) ? [] : [{ key, before, after }];
+  });
 }
 
 /** @param {string} projectDir */
