@@ -175,8 +175,8 @@ exported by the browser can be imported by the CLI. Inputs are stably sorted by 
 generated output omits timestamps and absolute paths.
 
 ```sh
-gfx-image-tool build ./MySketch
-gfx-image-tool build ./MySketch --check
+npx gfx-image-tool build ./MySketch
+npx gfx-image-tool build ./MySketch --check
 ```
 
 The new `.imagesconfig` lives in `MySketch/images/` and defaults to `output_dir = ..`; both
@@ -203,9 +203,11 @@ TinyGFX's host oracle performs the authoritative pixel-exact check for all five 
 ## CI workflow
 
 ```sh
-npm ci
-gfx-image-tool build MySketch --check
+npx gfx-image-tool@1.0.0 build MySketch --check
 ```
+
+Pin the CLI version in CI so a newly published encoder cannot change the result unexpectedly. Update
+the version and regenerated outputs in the same reviewed change.
 
 Exit status 2 means generated output is not current, 3 means invalid options or configuration, and
 1 means I/O, decoding, or conversion failed. Use `--json` when stdout is consumed by automation.

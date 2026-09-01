@@ -658,8 +658,10 @@ images/ by default. From the project root, rebuild or verify with:
 元画像と.imagesconfigはimages/に置きます。生成headerは既定でimages/の隣へ出力します。
 project rootから再生成・検査できます:
 
-  gfx-image-tool build .
-  gfx-image-tool build . --check
+  npx gfx-image-tool build .
+  npx gfx-image-tool build . --check
+
+For CI / CIでは、npx gfx-image-tool@1.0.0 build . --check のようにversionを固定します。
 
 .gfx-image-tool/ is disposable cache and is excluded by images/.gitignore.
 .gfx-image-tool/は再生成可能なcacheで、images/.gitignoreによりgit管理されません。

@@ -42,21 +42,25 @@ project共通設定と画像別overrideに対応し、TinyGFXでは複数画像�
 ### CLI
 
 Node.js 20以上が必要です。
+global installは不要で、`npx`が公開済みCLIを必要なときだけ取得して実行します。
 
 ```sh
-npm install --global gfx-image-tool
-gfx-image-tool inspect icon.png --target tinygfx
-gfx-image-tool build icon.png --target tinygfx --out icon.h
+npx gfx-image-tool inspect icon.png --target tinygfx
+npx gfx-image-tool build icon.png --target tinygfx --out icon.h
 ```
 
 directory projectを再現可能に管理する例:
 
 ```sh
-gfx-image-tool init ./MySketch
+npx gfx-image-tool init ./MySketch
 # 元画像を ./MySketch/images/ へ置く
-gfx-image-tool build ./MySketch
-gfx-image-tool build ./MySketch --check
+npx gfx-image-tool build ./MySketch
+npx gfx-image-tool build ./MySketch --check
 ```
+
+CIではcommit済み生成物に使うtool versionを固定します。たとえば
+`npx gfx-image-tool@1.0.0 build ./MySketch --check`とし、version指定と再生成した出力を同じ変更で
+更新してください。
 
 新規projectは`MySketch/images/.imagesconfig`を作り、全画像を`MySketch/images.h`へまとめます。
 生成先は設定の`output_dir`と`output_file`で変更でき、画像別headerが必要な場合は
@@ -69,7 +73,7 @@ bundle headerには画像ごとのsymbolに加え、`*_file_count`、`*_file_nam
 一覧も未使用画像もlinkerにより除去されます。
 
 ```sh
-gfx-image-tool build ./MySketch --target tinygfx \
+npx gfx-image-tool build ./MySketch --target tinygfx \
   --preview ./previews --preview-layout both
 ```
 

@@ -9,10 +9,13 @@
 ## コマンド
 
 ```text
-gfx-image-tool build <path> [options]
-gfx-image-tool inspect <path> [options]
-gfx-image-tool init [directory]
+npx gfx-image-tool build <path> [options]
+npx gfx-image-tool inspect <path> [options]
+npx gfx-image-tool init [directory]
 ```
+
+Node.js 20以上が必要です。global installは不要で、この文書の例はすべて`npx`から公開packageを
+必要なときに実行します。
 
 `path`がファイルなら1枚を変換します。`init MySketch`は`MySketch/images/.imagesconfig`を作り、
 `build MySketch`と`inspect MySketch`はこのcanonical projectを自動検出します。元画像は`images/`へ置き、
@@ -43,8 +46,12 @@ gfx-image-tool init [directory]
 すべての`--json`出力は、生成に使用したCLIを識別する次のfieldから始まります。生成headerへversion
 commentは埋め込まないため、tool更新だけでheader差分が発生することはありません。
 
+対話的な利用では`npx gfx-image-tool`で最新releaseを実行できます。CIではcommit済み生成物に使った
+versionを`npx gfx-image-tool@1.0.0 build MySketch --check`のように固定し、version指定と生成物を
+同じ変更で更新します。
+
 ```json
-{ "tool": { "name": "gfx-image-tool", "version": "0.1.0" } }
+{ "tool": { "name": "gfx-image-tool", "version": "1.0.0" } }
 ```
 
 TinyGFXでは`--decoder-cost <N>`で1形式分の固定コストを変更できます。
@@ -55,10 +62,10 @@ TinyGFXでは`--decoder-cost <N>`で1形式分の固定コストを変更でき�
 変換後の実画素はPNGへ書き出せます。
 
 ```sh
-gfx-image-tool build icon.png --target tinygfx --preview icon-converted.png
-gfx-image-tool build icon.png --target tinygfx \
+npx gfx-image-tool build icon.png --target tinygfx --preview icon-converted.png
+npx gfx-image-tool build icon.png --target tinygfx \
   --preview icon-comparison.png --preview-layout comparison
-gfx-image-tool build icon.png --target tinygfx \
+npx gfx-image-tool build icon.png --target tinygfx \
   --preview icon.png --preview-layout both
 ```
 
@@ -97,7 +104,7 @@ output_mode = bundle
 ```
 
 この例は`MySketch/src/generated/artwork.h`を生成します。一時的に出力directoryだけを変える場合は
-`gfx-image-tool build MySketch --out ./temporary`のように指定します。CLI optionは設定より優先されます。
+`npx gfx-image-tool build MySketch --out ./temporary`のように指定します。CLI optionは設定より優先されます。
 
 bundle headerには設定したprefix（空なら`images`）を使った次の一覧も常に入ります。
 

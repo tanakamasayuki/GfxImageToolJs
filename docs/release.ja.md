@@ -72,8 +72,9 @@ npm publish --access public
 git push --follow-tags
 ```
 
-`npm publish`の`prepack`はbundleと型定義を再生成します。publish後は、別の一時directoryで公開packageの
-version、root import、`gfx-image-tool --version`を確認します。npm tokenや認証情報はrepositoryへ置きません。
+`npm publish`の`prepack`はbundleと型定義を再生成します。publish後のCLIはglobal installせず、
+`npx gfx-image-tool@<published-version> --version`で公開versionを確認します。root importは別の一時projectで
+確認します。npm tokenや認証情報はrepositoryへ置きません。
 
 ## GitHub Actions
 
@@ -87,7 +88,7 @@ provenanceを使用します。
 ## リリース後
 
 - npm package pageに目的versionが表示されること
-- `npm install --global gfx-image-tool`後にCLIが起動すること
+- `npx gfx-image-tool@<published-version> --version`がglobal installなしで起動すること
 - Git tagとGitHub上のcommitが一致すること
 - [Web版](https://tanakamasayuki.github.io/GfxImageToolJs/)が最新versionで動くこと
 - CHANGELOGと日英ドキュメントのリンクが公開先で開くこと

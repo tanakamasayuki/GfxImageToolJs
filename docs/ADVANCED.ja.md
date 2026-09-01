@@ -171,8 +171,8 @@ bundle末尾には`<prefix>_file_count`、`file_names`、`file_data`、`file_siz
 入れません。
 
 ```sh
-gfx-image-tool build ./MySketch
-gfx-image-tool build ./MySketch --check
+npx gfx-image-tool build ./MySketch
+npx gfx-image-tool build ./MySketch --check
 ```
 
 新規projectの`.imagesconfig`は`MySketch/images/`にあり、`output_dir = ..`が既定です。任意の
@@ -198,9 +198,11 @@ TinyGFXではhost oracleで全5形式をpixel exact比較するのが正検査�
 ## CIでの運用例
 
 ```sh
-npm ci
-gfx-image-tool build MySketch --check
+npx gfx-image-tool@1.0.0 build MySketch --check
 ```
+
+CIでは新しいencoderの公開によって結果が予期せず変わらないよう、CLI versionを固定します。versionと
+再生成した出力は同じreview対象の変更で更新します。
 
 終了コード2は「生成物が最新でない」、3はoption/config誤り、1はI/O・decode・変換失敗です。JSONを処理する
 場合は`--json`を使い、stdoutを機械可読出力として扱います。

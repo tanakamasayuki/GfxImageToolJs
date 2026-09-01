@@ -180,11 +180,10 @@ Web版は設定を試す作業に向いています。元画像の更新、チ�
 生成し直せます。
 
 ```sh
-npm install --global gfx-image-tool
-gfx-image-tool init ./MySketch
+npx gfx-image-tool init ./MySketch
 # ./MySketch/images/へ画像を置く
-gfx-image-tool build ./MySketch --target tinygfx
-gfx-image-tool build ./MySketch --target tinygfx --check
+npx gfx-image-tool build ./MySketch --target tinygfx
+npx gfx-image-tool build ./MySketch --target tinygfx --check
 ```
 
 `init`は`MySketch/images/.imagesconfig`を作り、既定で全画像を`MySketch/images.h`へまとめます。

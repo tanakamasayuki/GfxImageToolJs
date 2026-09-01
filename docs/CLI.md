@@ -8,10 +8,13 @@ format and TinyGFX optimization details. This document is the command and config
 ## Commands
 
 ```text
-gfx-image-tool build <path> [options]
-gfx-image-tool inspect <path> [options]
-gfx-image-tool init [directory]
+npx gfx-image-tool build <path> [options]
+npx gfx-image-tool inspect <path> [options]
+npx gfx-image-tool init [directory]
 ```
+
+Node.js 20 or later is required. A global installation is not required; every example uses `npx`
+to run the published package on demand.
 
 A file path converts one image. `init MySketch` creates `MySketch/images/.imagesconfig`; subsequent
 `build MySketch` and `inspect MySketch` commands detect that canonical project. Put originals under
@@ -43,11 +46,15 @@ existing configuration.
 Every `--json` result starts with metadata identifying the CLI that produced it:
 
 ```json
-{ "tool": { "name": "gfx-image-tool", "version": "0.1.0" } }
+{ "tool": { "name": "gfx-image-tool", "version": "1.0.0" } }
 ```
 
 The version is not embedded in generated headers, so upgrading the tool alone does not create a
 header diff.
+
+Interactive use may run the current release as `npx gfx-image-tool`. CI should pin the version that
+generated committed outputs, for example `npx gfx-image-tool@1.0.0 build MySketch --check`, and
+update the pin and generated files together.
 
 For TinyGFX, `--decoder-cost <N>` changes the fixed cost per format, `--prefer-bitmap h|v`
 resolves equal-size 1bpp candidates, and `--monochrome` admits thresholded 1bpp candidates for
@@ -89,7 +96,7 @@ output_mode = bundle
 ```
 
 This writes `MySketch/src/generated/artwork.h`. For a temporary directory override, use
-`gfx-image-tool build MySketch --out ./temporary`; CLI options take precedence over configuration.
+`npx gfx-image-tool build MySketch --out ./temporary`; CLI options take precedence over configuration.
 
 Bundle headers always include indexes using the configured prefix, or `images` when it is empty:
 

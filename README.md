@@ -46,21 +46,25 @@ operation is reproducible as `source_key = RRGGBB` in `.imagesconfig`.
 ### CLI
 
 Node.js 20 or later is required.
+No global installation is required; `npx` downloads and runs the published CLI on demand.
 
 ```sh
-npm install --global gfx-image-tool
-gfx-image-tool inspect icon.png --target tinygfx
-gfx-image-tool build icon.png --target tinygfx --out icon.h
+npx gfx-image-tool inspect icon.png --target tinygfx
+npx gfx-image-tool build icon.png --target tinygfx --out icon.h
 ```
 
 For a reproducible directory project:
 
 ```sh
-gfx-image-tool init ./MySketch
+npx gfx-image-tool init ./MySketch
 # Put original images in ./MySketch/images/
-gfx-image-tool build ./MySketch
-gfx-image-tool build ./MySketch --check
+npx gfx-image-tool build ./MySketch
+npx gfx-image-tool build ./MySketch --check
 ```
+
+In CI, pin the tool version used by committed outputs, for example
+`npx gfx-image-tool@1.0.0 build ./MySketch --check`. Upgrade that version and regenerated outputs in
+the same change.
 
 New projects keep `.imagesconfig` in `MySketch/images/` and bundle every image into
 `MySketch/images.h`. Change `output_dir` and `output_file` in the configuration to place output
@@ -73,7 +77,7 @@ When those indexes are unreferenced, normal embedded builds using section GC can
 and otherwise-unused images.
 
 ```sh
-gfx-image-tool build ./MySketch --target tinygfx \
+npx gfx-image-tool build ./MySketch --target tinygfx \
   --preview ./previews --preview-layout both
 ```
 

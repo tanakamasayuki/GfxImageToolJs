@@ -75,9 +75,9 @@ npm publish --access public
 git push --follow-tags
 ```
 
-The `prepack` hook regenerates bundles and declarations. After publication, install from npm in a
-separate temporary directory and verify the published version, root import, and
-`gfx-image-tool --version`. Never store npm tokens or credentials in the repository.
+The `prepack` hook regenerates bundles and declarations. After publication, verify the published CLI
+without a global install using `npx gfx-image-tool@<published-version> --version`. Verify the root
+import in a separate temporary project. Never store npm tokens or credentials in the repository.
 
 ## GitHub Actions
 
@@ -92,7 +92,7 @@ Publishing and provenance.
 ## Post-release checks
 
 - The intended version appears on the npm package page.
-- The CLI starts after `npm install --global gfx-image-tool`.
+- `npx gfx-image-tool@<published-version> --version` starts without a global installation.
 - The Git tag points to the expected GitHub commit.
 - The [web app](https://tanakamasayuki.github.io/GfxImageToolJs/) runs the current version.
 - Changelog and English/Japanese documentation links open from their published locations.

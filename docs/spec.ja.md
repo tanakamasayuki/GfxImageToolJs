@@ -515,10 +515,10 @@ source_key = FF00FF
 兄弟ツールに揃え、command + path を基本形とする。
 
 ```sh
-gfx-image-tool build [path] [options]
-gfx-image-tool inspect [path] [options]
-gfx-image-tool init [path]
-gfx-image-tool --version
+npx gfx-image-tool build [path] [options]
+npx gfx-image-tool inspect [path] [options]
+npx gfx-image-tool init [path]
+npx gfx-image-tool --version
 ```
 
 主要 option:
