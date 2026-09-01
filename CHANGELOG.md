@@ -4,6 +4,8 @@
 
 - (EN) Use installation-free `npx gfx-image-tool` commands throughout user documentation and pin `gfx-image-tool@1.0.0` in CI examples for reproducible generated assets.
 - (JA) 利用者向け文書のCLI例をinstall不要の`npx gfx-image-tool`へ統一し、CI例は生成assetを再現できるよう`gfx-image-tool@1.0.0`へ固定。
+- (EN) This is a documentation and generated project-README update only; encoder behavior, CLI behavior, library APIs, and generated header bytes are unchanged.
+- (JA) 文書と生成project内READMEだけの更新で、encoder動作、CLI動作、library API、生成headerのbyte列に変更はありません。
 
 ## 1.0.0
 
